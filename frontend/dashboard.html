@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Synthcast — Creator Studio</title>
+<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --void:#08080C;
+  --surface:#0F0F18;
+  --surface2:#161622;
+  --surface3:#1E1E2E;
+  --signal:#534AB7;
+  --signal-mid:#7F77DD;
+  --signal-light:#AFA9EC;
+  --signal-frost:#EEEDFE;
+  --live:#1D9E75;
+  --live-light:#4ECBA0;
+  --live-dim:rgba(29,158,117,0.15);
+  --amber:#BA7517;
+  --amber-light:#EF9F27;
+  --red:#A32D2D;
+  --red-light:#E24B4A;
+  --white:#F0F0F8;
+  --muted:#52526B;
+  --muted2:#3A3A52;
+  --border:rgba(83,74,183,0.15);
+  --border2:rgba(83,74,183,0.25);
+  --font-display:'Syne',sans-serif;
+  --font-body:'DM Sans',sans-serif;
+  --font-mono:'JetBrains Mono',monospace;
+}
+html,body,#root{height:100%;background:var(--void);color:var(--white);font-family:var(--font-body);font-size:14px;line-height:1.5;overflow:hidden}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--muted2);border-radius:2px}
+button{cursor:pointer;font-family:var(--font-body);border:none;outline:none}
+input,select,textarea{font-family:var(--font-body);outline:none}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
+
+// ── MOCK API ────────────────────────────────────────────────────────────────
+// In production, replace these with real fetch() calls to localhost:8000
+
+const API_URL = 'http://localhost:8000';
+
+const mockSession = {
+  is_live: false,
+  session_id: null,
+  session_duration_s: 0,
+  comments_processed: 0,
+  responses_spoken: 0,
+  queue_size: 0,
+  memory_stats: { total_unique_viewers: 0, repeat_viewers: 0, subscribers: 0, gifters: 0, total_gift_revenue: 0 }
+};
+
+const mockComments = [
+  { id: 1, username: 'creator_fan_88', text: 'What camera are you using?', type: 'question', response: 'I shoot on the Sony ZV-E10 — great for the price!', priority: 7, ts: Date.now() - 12000 },
+  { id: 2, username: 'gifter_king', text: 'here you go!', type: 'gift', gift: 5.0, response: 'Whoa thank you gifter_king! That genuinely means a lot!', priority: 10, ts: Date.now() - 8000 },
+  { id: 3, username: 'loyal_fan_01', text: 'you are the GOAT', type: 'compliment', response: 'Appreciate that! This community is everything.', priority: 5, ts: Date.now() - 4000 },
+  { id: 4, username: 'spambot123', text: 'follow me follow back!!', type: 'spam', response: null, priority: 0, ts: Date.now() - 2000 },
+  { id: 5, username: 'newviewer2025', text: 'just followed this is so cool!', type: 'new_follow', response: 'Welcome newviewer2025! Really glad you\'re here.', priority: 10, ts: Date.now() },
+];
+
+// ── ICONS ───────────────────────────────────────────────────────────────────
+const Icon = ({ name, size = 14 }) => {
+  const icons = {
+    live: <svg width={size} height={size} viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="3" fill="currentColor"/><circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.5" fill="none" opacity=".4"/></svg>,
+    stop: <svg width={size} height={size} viewBox="0 0 16 16" fill="none"><rect x="3" y="3" width="10" height="10" rx="2" fill="currentColor"/></svg>,
+    comment: <svg width={size} height={size} viewBox="0 0 16 16" fill="none"><path d="M2 3a1 1 0 011-1h10a1 1 0 011 1v7a1 1 0 01-1 1H5l-3 3V3z" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinejoin="round"/></svg>,
+    gift: <svg width={size} height={size} viewBox="0 0 16 16" fill="none"><rect x="2" y="6" width="12" height="8" rx="1" stroke="currentColor" strokeWidth="1.5" fill="none"/><path d="M8 6V14M2 9h12" stroke="currentColor" strokeWidth="1.5"/><path d="M8 6C8 6 6 4 5 3s0-1.5 1.5-.5S8 5 8 6z" stroke="currentColor" strokeWidth="1.2" fill="none"/><path d="M8 6C8 6 10 4 11 3s0-1.5-1.5-.5S8 5 8 6z" stroke="currentColor" strokeWidth="1.2" fill="none"/></svg>,
+    users: <svg width={size} height={size} viewBox="0 0 16 16" fill="none"><circle cx="6" cy="5" r="2.5" stroke="currentColor" strokeWidth="1.5" fill="none"/><path d="M1 13c0-2.76 2.24-5 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><circle cx="12" cy="6" r="2" stroke="currentColor" strokeWidth="1.5" fill="none"/><path d="M10 13c0-1.66 1.34-3 3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>,
+    dollar: <svg width={size} height={size} viewBox="0 0 16 16" fill="none"><path d="M8 2v12M5 5.5A2.5 2.5 0 017.5 3H9a2 2 0 010 4H7a2 2 0 000 4h1.5A2.5 2.5 0 0011 8.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>,
+    shield: <svg width={size} height={size} viewBox="0 0 16 16" fill="none"><path d="M8 2L3 4v4c0 3 2.5 5 5 6 2.5-1 5-3 5-6V4L8 2z" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinejoin="round"/></svg>,
+    brain: <svg width={size} height={size} viewBox="0 0 16 16" fill="none"><ellipse cx="8" cy="8" rx="5" ry="4" stroke="currentColor" strokeWidth="1.5" fill="none"/><path d="M3 8h10M8 4v8" stroke="currentColor" strokeWidth="1" opacity=".5"/></svg>,
+    settings: <svg width={size} height={size} viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2.5" stroke="currentColor" strokeWidth="1.5" fill="none"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.22 3.22l1.42 1.42M11.36 11.36l1.42 1.42M3.22 12.78l1.42-1.42M11.36 4.64l1.42-1.42" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>,
+    zap: <svg width={size} height={size} viewBox="0 0 16 16" fill="none"><path d="M9 2L3 9h5l-1 5 7-7H9l1-5z" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinejoin="round"/></svg>,
+    check: <svg width={size} height={size} viewBox="0 0 16 16" fill="none"><path d="M3 8l4 4 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>,
+    x: <svg width={size} height={size} viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>,
+    skip: <svg width={size} height={size} viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity=".4"/></svg>,
+  };
+  return icons[name] || null;
+};
+
+// ── UTILS ───────────────────────────────────────────────────────────────────
+const fmtDuration = (s) => {
+  if (!s) return '0:00';
+  const m = Math.floor(s / 60), sec = Math.floor(s % 60);
+  return `${m}:${sec.toString().padStart(2, '0')}`;
+};
+
+const typeConfig = {
+  question:   { color: '#7F77DD', label: 'Q', bg: 'rgba(127,119,221,0.12)' },
+  gift:       { color: '#EF9F27', label: 'G', bg: 'rgba(239,159,39,0.12)' },
+  compliment: { color: '#4ECBA0', label: 'C', bg: 'rgba(78,203,160,0.12)' },
+  new_follow: { color: '#4ECBA0', label: 'F', bg: 'rgba(78,203,160,0.12)' },
+  spam:       { color: '#52526B', label: 'S', bg: 'rgba(82,82,107,0.08)' },
+  general:    { color: '#52526B', label: '-', bg: 'rgba(82,82,107,0.08)' },
+  toxic:      { color: '#E24B4A', label: '!', bg: 'rgba(226,75,74,0.12)' },
+};
+
+// ── STAT CARD ────────────────────────────────────────────────────────────────
+const StatCard = ({ label, value, accent, sub }) => (
+  <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 16px', minWidth: 0 }}>
+    <div style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'var(--font-mono)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>{label}</div>
+    <div style={{ fontSize: 26, fontFamily: 'var(--font-display)', fontWeight: 700, color: accent || 'var(--white)', lineHeight: 1 }}>{value}</div>
+    {sub && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>{sub}</div>}
+  </div>
+);
+
+// ── LIVE BADGE ───────────────────────────────────────────────────────────────
+const LiveBadge = ({ isLive }) => (
+  <div style={{
+    display: 'flex', alignItems: 'center', gap: 6,
+    padding: '4px 10px', borderRadius: 20,
+    background: isLive ? 'var(--live-dim)' : 'rgba(82,82,107,0.15)',
+    border: `1px solid ${isLive ? 'rgba(29,158,117,0.4)' : 'var(--border)'}`,
+    fontSize: 11, fontWeight: 600, fontFamily: 'var(--font-mono)',
+    color: isLive ? 'var(--live-light)' : 'var(--muted)',
+    letterSpacing: '0.1em'
+  }}>
+    <span style={{
+      width: 6, height: 6, borderRadius: '50%',
+      background: isLive ? 'var(--live)' : 'var(--muted)',
+      animation: isLive ? 'pulse 1.5s ease-in-out infinite' : 'none'
+    }} />
+    {isLive ? 'LIVE' : 'OFFLINE'}
+  </div>
+);
+
+// ── COMMENT FEED ─────────────────────────────────────────────────────────────
+const CommentFeed = ({ comments }) => {
+  const endRef = useRef(null);
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [comments]);
+
+  return (
+    <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6, padding: '0 2px' }}>
+      {comments.map(c => {
+        const cfg = typeConfig[c.type] || typeConfig.general;
+        const skipped = !c.response;
+        return (
+          <div key={c.id} style={{
+            background: skipped ? 'transparent' : 'var(--surface2)',
+            border: `1px solid ${skipped ? 'var(--border)' : 'var(--border2)'}`,
+            borderRadius: 8, padding: '10px 12px', opacity: skipped ? 0.45 : 1,
+            transition: 'all 0.2s'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: skipped ? 0 : 6 }}>
+              <span style={{
+                width: 20, height: 20, borderRadius: 4, background: cfg.bg,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 9, fontWeight: 700, color: cfg.color, fontFamily: 'var(--font-mono)',
+                flexShrink: 0
+              }}>{cfg.label}</span>
+              <span style={{ fontWeight: 500, color: 'var(--signal-light)', fontSize: 12 }}>@{c.username}</span>
+              {c.gift > 0 && <span style={{ fontSize: 11, color: 'var(--amber-light)', fontFamily: 'var(--font-mono)' }}>${c.gift.toFixed(2)}</span>}
+              <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--muted)', fontFamily: 'var(--font-mono)' }}>
+                {Math.round((Date.now() - c.ts) / 1000)}s ago
+              </span>
+            </div>
+            <div style={{ fontSize: 12, color: skipped ? 'var(--muted)' : 'var(--white)', paddingLeft: 28, marginBottom: c.response ? 6 : 0 }}>{c.text}</div>
+            {c.response && (
+              <div style={{ paddingLeft: 28, fontSize: 12, color: 'var(--signal-light)', borderLeft: '2px solid var(--signal)', marginLeft: 28, paddingRight: 4 }}>
+                {c.response}
+              </div>
+            )}
+          </div>
+        );
+      })}
+      <div ref={endRef} />
+    </div>
+  );
+};
+
+// ── BRAND KIT EDITOR ──────────────────────────────────────────────────────────
+const BrandKitEditor = ({ kit, onChange, disabled }) => {
+  const Field = ({ label, field, placeholder, textarea, type = 'text' }) => (
+    <div style={{ marginBottom: 14 }}>
+      <label style={{ display: 'block', fontSize: 11, color: 'var(--muted)', fontFamily: 'var(--font-mono)', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 5 }}>{label}</label>
+      {textarea ? (
+        <textarea
+          value={kit[field] || ''}
+          onChange={e => onChange(field, e.target.value)}
+          disabled={disabled}
+          placeholder={placeholder}
+          rows={2}
+          style={{ width: '100%', background: 'var(--surface3)', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 10px', color: 'var(--white)', fontSize: 13, resize: 'vertical', opacity: disabled ? 0.5 : 1 }}
+        />
+      ) : (
+        <input
+          type={type}
+          value={kit[field] || ''}
+          onChange={e => onChange(field, e.target.value)}
+          disabled={disabled}
+          placeholder={placeholder}
+          style={{ width: '100%', background: 'var(--surface3)', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 10px', color: 'var(--white)', fontSize: 13, opacity: disabled ? 0.5 : 1 }}
+        />
+      )}
+    </div>
+  );
+
+  const SliderField = ({ label, field, min = 1, max = 10 }) => (
+    <div style={{ marginBottom: 14 }}>
+      <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--muted)', fontFamily: 'var(--font-mono)', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 5 }}>
+        <span>{label}</span>
+        <span style={{ color: 'var(--signal-light)' }}>{kit[field]}/{max}</span>
+      </label>
+      <input type="range" min={min} max={max} value={kit[field] || 5}
+        onChange={e => onChange(field, Number(e.target.value))}
+        disabled={disabled}
+        style={{ width: '100%', accentColor: 'var(--signal)', opacity: disabled ? 0.5 : 1 }}
+      />
+    </div>
+  );
+
+  const TagField = ({ label, field }) => {
+    const [input, setInput] = useState('');
+    const tags = kit[field] || [];
+    return (
+      <div style={{ marginBottom: 14 }}>
+        <label style={{ display: 'block', fontSize: 11, color: 'var(--muted)', fontFamily: 'var(--font-mono)', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 5 }}>{label}</label>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 6 }}>
+          {tags.map((t, i) => (
+            <span key={i} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'var(--surface3)', border: '1px solid var(--border)', borderRadius: 4, padding: '3px 8px', fontSize: 11, color: 'var(--white)' }}>
+              {t}
+              {!disabled && <button onClick={() => onChange(field, tags.filter((_, j) => j !== i))} style={{ background: 'none', color: 'var(--muted)', display: 'flex', alignItems: 'center', padding: 0 }}><Icon name="x" size={10} /></button>}
+            </span>
+          ))}
+        </div>
+        {!disabled && (
+          <input
+            value={input} placeholder={`Add ${label.toLowerCase()}...`}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && input.trim()) { onChange(field, [...tags, input.trim()]); setInput(''); } }}
+            style={{ width: '100%', background: 'var(--surface3)', border: '1px solid var(--border)', borderRadius: 6, padding: '6px 10px', color: 'var(--white)', fontSize: 12 }}
+          />
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div style={{ overflowY: 'auto', flex: 1, paddingRight: 4 }}>
+      <Field label="Creator name" field="creator_name" placeholder="Your real name" />
+      <Field label="Avatar name" field="avatar_name" placeholder="What your AI is called on stream" />
+      <Field label="Personality" field="personality" placeholder="confident, warm, direct, never sarcastic" textarea />
+      <SliderField label="Humor level" field="humor_level" />
+      <SliderField label="Formality" field="formality" />
+      <Field label="Max response words" field="max_response_words" type="number" placeholder="40" />
+      <TagField label="Banned topics" field="banned_topics" />
+      <TagField label="Banned words" field="banned_words" />
+      <TagField label="CTA scripts" field="cta_scripts" />
+    </div>
+  );
+};
+
+// ── VIEWER MEMORY PANEL ───────────────────────────────────────────────────────
+const ViewerPanel = ({ stats }) => {
+  const rows = [
+    { label: 'Unique viewers', value: stats.total_unique_viewers, color: 'var(--signal-light)' },
+    { label: 'Repeat viewers', value: stats.repeat_viewers, color: 'var(--signal-mid)' },
+    { label: 'Subscribers', value: stats.subscribers, color: 'var(--live-light)' },
+    { label: 'Gift senders', value: stats.gifters, color: 'var(--amber-light)' },
+    { label: 'Gift revenue', value: `$${(stats.total_gift_revenue || 0).toFixed(2)}`, color: 'var(--amber-light)' },
+  ];
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {rows.map(r => (
+        <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 12px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 7 }}>
+          <span style={{ fontSize: 12, color: 'var(--muted)' }}>{r.label}</span>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 500, color: r.color }}>{r.value}</span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// ── MAIN APP ─────────────────────────────────────────────────────────────────
+const App = () => {
+  const [activeTab, setActiveTab] = useState('studio');
+  const [isLive, setIsLive] = useState(false);
+  const [sessionData, setSessionData] = useState(mockSession);
+  const [comments, setComments] = useState(mockComments);
+  const [elapsed, setElapsed] = useState(0);
+  const [kit, setKit] = useState({
+    creator_name: '',
+    avatar_name: '',
+    personality: 'confident, warm, direct, never sarcastic',
+    humor_level: 5,
+    formality: 5,
+    max_response_words: 40,
+    banned_topics: ['politics', 'religion', 'competitors'],
+    banned_words: [],
+    cta_scripts: ['Follow for more!', 'Subscribe to support the stream!'],
+  });
+  const [starting, setStarting] = useState(false);
+  const [llmProvider, setLlmProvider] = useState('mock');
+  const timerRef = useRef(null);
+  const commentIdRef = useRef(100);
+
+  // Simulate new comments arriving when live
+  useEffect(() => {
+    if (!isLive) return;
+    const interval = setInterval(() => {
+      const templates = [
+        { username: 'live_viewer_' + Math.floor(Math.random()*999), text: 'What do you think about this?', type: 'question', response: 'Great question! I think it really depends on your situation.', priority: 7 },
+        { username: 'fan_' + Math.floor(Math.random()*99), text: 'love this stream', type: 'compliment', response: 'Appreciate that! Community makes this worth it.', priority: 5 },
+        { username: 'newuser_' + Math.floor(Math.random()*99), text: 'just followed!', type: 'new_follow', response: `Welcome to the stream! Glad you're here.`, priority: 10 },
+        { username: 'spammer_bot', text: 'aaaaaaaaaa follow me', type: 'spam', response: null, priority: 0 },
+      ];
+      const t = templates[Math.floor(Math.random() * templates.length)];
+      setComments(prev => [...prev.slice(-49), { ...t, id: ++commentIdRef.current, gift: 0, ts: Date.now() }]);
+      setSessionData(prev => ({
+        ...prev,
+        comments_processed: prev.comments_processed + 1,
+        responses_spoken: prev.responses_spoken + (t.response ? 1 : 0),
+        memory_stats: {
+          ...prev.memory_stats,
+          total_unique_viewers: prev.memory_stats.total_unique_viewers + (Math.random() > 0.7 ? 1 : 0),
+        }
+      }));
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [isLive]);
+
+  // Timer
+  useEffect(() => {
+    if (isLive) {
+      timerRef.current = setInterval(() => setElapsed(e => e + 1), 1000);
+    } else {
+      clearInterval(timerRef.current);
+    }
+    return () => clearInterval(timerRef.current);
+  }, [isLive]);
+
+  const handleStart = async () => {
+    if (!kit.creator_name || !kit.avatar_name) {
+      alert('Set your creator name and avatar name first.');
+      return;
+    }
+    setStarting(true);
+    await new Promise(r => setTimeout(r, 1200)); // simulate API call
+    setIsLive(true);
+    setElapsed(0);
+    setSessionData({ ...mockSession, is_live: true, session_id: `session_${Date.now()}` });
+    setStarting(false);
+    setActiveTab('monitor');
+  };
+
+  const handleStop = async () => {
+    setIsLive(false);
+    setElapsed(0);
+  };
+
+  const updateKit = (field, value) => setKit(prev => ({ ...prev, [field]: value }));
+
+  const tabs = [
+    { id: 'studio', label: 'Brand Kit', icon: 'settings' },
+    { id: 'monitor', label: 'Live Monitor', icon: 'live' },
+    { id: 'memory', label: 'Audience', icon: 'users' },
+  ];
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--void)' }}>
+      <style>{`
+        @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.7)} }
+        @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+        .tab-btn { transition: all .15s; }
+        .tab-btn:hover { background: var(--surface2) !important; }
+        .action-btn { transition: all .15s; }
+        .action-btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
+        .action-btn:active { transform: translateY(0) scale(.98); }
+        input[type=range] { appearance:none; height:4px; border-radius:2px; background:var(--surface3); }
+        input[type=range]::-webkit-slider-thumb { appearance:none; width:14px; height:14px; border-radius:50%; background:var(--signal-mid); cursor:pointer; }
+      `}</style>
+
+      {/* ── NAV ── */}
+      <div style={{ display: 'flex', alignItems: 'center', padding: '0 20px', height: 52, background: 'var(--surface)', borderBottom: '1px solid var(--border)', flexShrink: 0, gap: 16 }}>
+        {/* Logo */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginRight: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 2, height: 18 }}>
+            {[8,13,18,13,8].map((h, i) => (
+              <div key={i} style={{ width: 3, height: h, background: 'var(--signal-mid)', borderRadius: 2, animation: isLive ? `pulse ${1.4 + i*0.1}s ease-in-out ${i*0.1}s infinite` : 'none' }} />
+            ))}
+          </div>
+          <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 15, letterSpacing: '-0.02em' }}>
+            <span style={{ color: 'var(--white)' }}>Synth</span>
+            <span style={{ color: 'var(--signal-light)', fontWeight: 400 }}>cast</span>
+          </span>
+        </div>
+
+        {/* Tabs */}
+        <div style={{ display: 'flex', gap: 2, flex: 1 }}>
+          {tabs.map(t => (
+            <button key={t.id} className="tab-btn" onClick={() => setActiveTab(t.id)} style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '6px 12px', borderRadius: 6, border: 'none',
+              background: activeTab === t.id ? 'var(--surface3)' : 'transparent',
+              color: activeTab === t.id ? 'var(--white)' : 'var(--muted)',
+              fontSize: 12, fontWeight: activeTab === t.id ? 500 : 400,
+              fontFamily: 'var(--font-body)',
+            }}>
+              <Icon name={t.icon} size={12} />
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Status + Controls */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {isLive && (
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--live-light)' }}>
+              {fmtDuration(elapsed)}
+            </span>
+          )}
+          <LiveBadge isLive={isLive} />
+          {!isLive ? (
+            <button className="action-btn" onClick={handleStart} disabled={starting} style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '7px 14px', borderRadius: 7,
+              background: 'var(--signal)', color: 'var(--white)',
+              fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-display)',
+              opacity: starting ? 0.7 : 1, letterSpacing: '0.02em'
+            }}>
+              <Icon name="live" size={12} />
+              {starting ? 'Starting...' : 'Go Live'}
+            </button>
+          ) : (
+            <button className="action-btn" onClick={handleStop} style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '7px 14px', borderRadius: 7,
+              background: 'rgba(163,45,45,0.2)', border: '1px solid rgba(226,75,74,0.3)',
+              color: 'var(--red-light)', fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-display)'
+            }}>
+              <Icon name="stop" size={12} />
+              End Session
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ── CONTENT ── */}
+      <div style={{ flex: 1, overflow: 'hidden', display: 'flex' }}>
+
+        {/* BRAND KIT TAB */}
+        {activeTab === 'studio' && (
+          <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '340px 1fr', gap: 0, overflow: 'hidden' }}>
+            {/* Left: Kit editor */}
+            <div style={{ borderRight: '1px solid var(--border)', padding: 20, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700, marginBottom: 3 }}>Brand Kit</div>
+                <div style={{ fontSize: 12, color: 'var(--muted)' }}>Configure your avatar's identity and rules</div>
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'var(--font-mono)', letterSpacing: '0.07em', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>LLM Provider</label>
+                <select value={llmProvider} onChange={e => setLlmProvider(e.target.value)} disabled={isLive}
+                  style={{ width: '100%', background: 'var(--surface3)', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 10px', color: 'var(--white)', fontSize: 13, opacity: isLive ? 0.5 : 1 }}>
+                  <option value="mock">Mock (free, for testing)</option>
+                  <option value="openai">OpenAI GPT-4o</option>
+                  <option value="anthropic">Anthropic Claude</option>
+                </select>
+              </div>
+
+              <BrandKitEditor kit={kit} onChange={updateKit} disabled={isLive} />
+            </div>
+
+            {/* Right: Preview */}
+            <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16, overflowY: 'auto' }}>
+              <div>
+                <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700, marginBottom: 3 }}>Preview</div>
+                <div style={{ fontSize: 12, color: 'var(--muted)' }}>How your avatar responds to different comment types</div>
+              </div>
+
+              {[
+                { label: 'Question', icon: 'question', comment: 'What camera do you use?', type: 'question', response: kit.avatar_name ? `I shoot on the Sony ZV-E10 — great value, honestly. What's your setup like?` : 'Set your avatar name to see a preview' },
+                { label: 'Gift', icon: 'gift', comment: '🎁 gifted 5 coins', type: 'gift', response: kit.creator_name ? `Thank you so much! That genuinely means a lot — I see you!` : 'Set your creator name to see a preview' },
+                { label: 'New follower', icon: 'follow', comment: 'just followed!', type: 'new_follow', response: kit.avatar_name ? `Welcome! Really glad you're here — stick around, it gets better.` : '' },
+                { label: 'Spam (blocked)', icon: 'spam', comment: 'follow me follow back!!', type: 'spam', response: null },
+              ].map(ex => (
+                <div key={ex.label} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: 14, animation: 'fadeIn 0.3s ease' }}>
+                  <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--muted)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>{ex.label}</div>
+                  <div style={{ fontSize: 12, color: 'var(--white)', marginBottom: ex.response ? 8 : 0 }}>{ex.comment}</div>
+                  {ex.response ? (
+                    <div style={{ fontSize: 12, color: 'var(--signal-light)', paddingLeft: 10, borderLeft: '2px solid var(--signal)' }}>
+                      {ex.response}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 11, color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <Icon name="x" size={10} /> Skipped — no response
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* MONITOR TAB */}
+        {activeTab === 'monitor' && (
+          <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 280px', gap: 0, overflow: 'hidden' }}>
+            {/* Comment feed */}
+            <div style={{ borderRight: '1px solid var(--border)', padding: 20, display: 'flex', flexDirection: 'column', gap: 12, overflow: 'hidden' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+                <div>
+                  <div style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 700 }}>Comment Feed</div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>{comments.length} comments this session</div>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {Object.entries(typeConfig).slice(0,4).map(([type, cfg]) => (
+                    <span key={type} style={{ fontSize: 10, padding: '2px 7px', borderRadius: 4, background: cfg.bg, color: cfg.color, fontFamily: 'var(--font-mono)' }}>{type}</span>
+                  ))}
+                </div>
+              </div>
+              <CommentFeed comments={comments} />
+            </div>
+
+            {/* Stats sidebar */}
+            <div style={{ padding: 16, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 700 }}>Session Stats</div>
+              <StatCard label="Duration" value={fmtDuration(elapsed)} />
+              <StatCard label="Processed" value={sessionData.comments_processed} accent="var(--signal-light)" />
+              <StatCard label="Spoken" value={sessionData.responses_spoken} accent="var(--live-light)" />
+              <StatCard label="Queue" value={sessionData.queue_size} accent="var(--amber-light)" />
+
+              <div style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 700, marginTop: 4 }}>Audience</div>
+              <StatCard label="Viewers" value={sessionData.memory_stats.total_unique_viewers} accent="var(--signal-light)" />
+              <StatCard label="Revenue" value={`$${(sessionData.memory_stats.total_gift_revenue||0).toFixed(2)}`} accent="var(--amber-light)" />
+
+              {!isLive && (
+                <div style={{ padding: 14, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12, color: 'var(--muted)', textAlign: 'center' }}>
+                  Go live to see real-time stats
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* AUDIENCE TAB */}
+        {activeTab === 'memory' && (
+          <div style={{ flex: 1, padding: 20, overflowY: 'auto' }}>
+            <div style={{ maxWidth: 600 }}>
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700, marginBottom: 3 }}>Audience Memory</div>
+                <div style={{ fontSize: 12, color: 'var(--muted)' }}>Viewer data tracked across your live sessions</div>
+              </div>
+              <ViewerPanel stats={sessionData.memory_stats} />
+
+              <div style={{ marginTop: 24, padding: 16, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10 }}>
+                <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 8 }}>How viewer memory works</div>
+                <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.7 }}>
+                  Your agent remembers every viewer who appears in chat — how many times they've visited, whether they're a subscriber, how much they've gifted, and any facts you manually tag them with.<br/><br/>
+                  When they return, your avatar greets them by name and references their history. Loyalty feels personal.
+                </div>
+              </div>
+
+              <div style={{ marginTop: 16, padding: 16, background: 'rgba(83,74,183,0.08)', border: '1px solid var(--border2)', borderRadius: 10 }}>
+                <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--signal-mid)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>API: Tag a viewer</div>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--signal-light)' }}>
+                  POST /memory/viewer/tiktok/{'{username}'}/fact<br/>
+                  <span style={{ color: 'var(--muted)' }}>?fact=loves+cooking+content</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── STATUS BAR ── */}
+      <div style={{ height: 28, background: 'var(--surface)', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', padding: '0 16px', gap: 20, flexShrink: 0 }}>
+        <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--muted)' }}>
+          API: {isLive ? <span style={{ color: 'var(--live-light)' }}>connected</span> : <span>localhost:8000</span>}
+        </span>
+        <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--muted)' }}>
+          LLM: <span style={{ color: 'var(--signal-light)' }}>{llmProvider}</span>
+        </span>
+        <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--muted)' }}>
+          TTS: {isLive ? <span style={{ color: 'var(--live-light)' }}>active</span> : <span>standby</span>}
+        </span>
+        <span style={{ marginLeft: 'auto', fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--muted)' }}>
+          Synthcast Creator Studio v0.1.0
+        </span>
+      </div>
+    </div>
+  );
+};
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
