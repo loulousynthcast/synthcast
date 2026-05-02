@@ -86,7 +86,17 @@ app.add_middleware(
 
 
 # ── BILLING ROUTES
-app.include_router(billing_router)
+try:
+    from billing.routes import router as billing_router
+    from database import init_db
+    BILLING_ENABLED = True
+except Exception as e:
+    print(f"WARNING: Billing/DB failed to load: {e}")
+    billing_router = None
+    BILLING_ENABLED = False
+    def init_db(): pass
+if billing_router:
+    app.include_router(billing_router)
 
 # ── REQUEST / RESPONSE MODELS ─────────────────────────────────────────────────
 
