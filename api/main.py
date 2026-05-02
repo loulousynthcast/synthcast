@@ -447,6 +447,20 @@ async def clear_queue():
 
 # ── TEST ENDPOINT ─────────────────────────────────────────────────────────────
 
+@app.get("/test/billing", tags=["dev"])
+async def test_billing():
+    """Check if billing module loaded correctly."""
+    try:
+        from billing.stripe_billing import TIER_CONFIGS, CreatorTier
+        from database.models import Base
+        return {
+            "billing": "loaded",
+            "tiers": list(TIER_CONFIGS.keys()),
+            "database": "loaded"
+        }
+    except Exception as e:
+        return {"billing": "failed", "error": str(e)}
+
 @app.post("/test/comment", tags=["dev"])
 async def test_comment(text: str = "What's your favorite game?", username: str = "testuser"):
     """
