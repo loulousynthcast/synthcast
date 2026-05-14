@@ -271,3 +271,135 @@ async def stripe_webhook(
 async def billing_stats():
     """MRR, tier breakdown, and account stats."""
     return account_store.stats()
+
+
+# ── API KEY MANAGEMENT ────────────────────────────────────────────────────────
+
+class ApiKeysRequest(BaseModel):
+    elevenlabs_api_key: Optional[str] = None
+    elevenlabs_voice_id: Optional[str] = None
+    heygen_api_key: Optional[str] = None
+    heygen_avatar_id: Optional[str] = None
+    openai_api_key: Optional[str] = None
+
+
+@router.post("/account/{creator_id}/api-keys", tags=["billing"])
+async def save_api_keys(creator_id: str, req: ApiKeysRequest):
+    """
+    Save creator-provided API keys.
+    Used by Free and Creator tier creators who bring their own keys.
+    Pro tier creators don't need this — Synthcast handles their keys.
+    """
+    account = account_store.get(creator_id)
+    if not account:
+        raise HTTPException(404, "Creator not found.")
+
+    from billing.stripe_billing import MANAGED_TIERS
+    if account.tier in MANAGED_TIERS:
+        return {
+            "status": "not_needed",
+            "message": f"You are on the {account.tier.value} plan. Synthcast manages all API keys for you.",
+            "managed_services": ["ElevenLabs", "HeyGen", "OpenAI"]
+        }
+
+    if req.elevenlabs_api_key:
+        account.elevenlabs_api_key = req.elevenlabs_api_key
+    if req.elevenlabs_voice_id:
+        account.elevenlabs_voice_id = req.elevenlabs_voice_id
+    if req.heygen_api_key:
+        account.heygen_api_key = req.heygen_api_key
+    if req.heygen_avatar_id:
+        account.heygen_avatar_id = req.heygen_avatar_id
+    if req.openai_api_key:
+        account.openai_api_key = req.openai_api_key
+
+    account_store.save(account)
+
+    missing = account.missing_keys()
+    return {
+        "status": "saved",
+        "tier": account.tier.value,
+        "missing_keys": missing,
+        "ready": len(missing) == 0,
+        "voice_configured": account.has_voice_configured(),
+        "avatar_configured": account.has_avatar_configured(),
+    }
+
+
+@router.get("/account/{creator_id}/setup-status", tags=["billing"])
+async def setup_status(creator_id: str):
+    """
+    Check if a creator has everything configured to go live.
+    Returns what's missing and what tier they're on.
+    """
+    account = account_store.get(creator_id)
+    if not account:
+        raise HTTPException(404, "Creator not found.")
+
+    from billing.stripe_billing import MANAGED_TIERS
+    is_managed = account.tier in MANAGED_TIERS
+
+    return {
+        "creator_id": creator_id,
+        "tier": account.tier.value,
+        "managed_keys": is_managed,
+        "voice_configured": account.has_voice_configured(),
+        "avatar_configured": account.has_avatar_configured(),
+        "missing_keys": account.missing_keys(),
+        "ready_to_go_live": len(account.missing_keys()) == 0,
+        "upgrade_message": (
+            None if is_managed else
+            "Upgrade to Pro ($79/mo) to let Synthcast handle all API keys automatically."
+        )
+    }
+
+
+@router.get("/tiers/compare", tags=["billing"])
+async def compare_tiers():
+    """
+    Full tier comparison including API key requirements.
+    Use this to power the pricing page.
+    """
+    return {
+        "tiers": [
+            {
+                "name": "Free",
+                "price": 0,
+                "price_label": "Free forever",
+                "platforms": 1,
+                "session_limit": "2 hours",
+                "api_keys": "bring_your_own",
+                "api_keys_label": "Bring your own ElevenLabs + HeyGen + OpenAI keys",
+                "voice_clone": False,
+                "video_avatar": False,
+                "analytics": False,
+                "highlight": False,
+            },
+            {
+                "name": "Creator",
+                "price": 29,
+                "price_label": "$29/month",
+                "platforms": 3,
+                "session_limit": "Unlimited",
+                "api_keys": "bring_your_own",
+                "api_keys_label": "Bring your own ElevenLabs + HeyGen + OpenAI keys",
+                "voice_clone": True,
+                "video_avatar": False,
+                "analytics": True,
+                "highlight": False,
+            },
+            {
+                "name": "Pro",
+                "price": 79,
+                "price_label": "$79/month",
+                "platforms": 5,
+                "session_limit": "Unlimited",
+                "api_keys": "managed",
+                "api_keys_label": "All API keys included — no external accounts needed",
+                "voice_clone": True,
+                "video_avatar": True,
+                "analytics": True,
+                "highlight": True,
+            },
+        ]
+    }

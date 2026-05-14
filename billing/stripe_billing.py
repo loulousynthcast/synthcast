@@ -105,6 +105,16 @@ TIER_CONFIGS = {
 
 # ── CREATOR ACCOUNT ───────────────────────────────────────────────────────────
 
+# Synthcast master API keys (set in Railway env vars)
+# Pro/Studio creators use these — no need to bring their own
+SYNTHCAST_ELEVENLABS_KEY = os.getenv("SYNTHCAST_ELEVENLABS_API_KEY", "")
+SYNTHCAST_HEYGEN_KEY     = os.getenv("SYNTHCAST_HEYGEN_API_KEY", "")
+SYNTHCAST_OPENAI_KEY     = os.getenv("SYNTHCAST_OPENAI_API_KEY", "")
+
+# Tiers that use Synthcast master keys
+MANAGED_TIERS = {CreatorTier.PRO}
+
+
 @dataclass
 class CreatorAccount:
     """Represents a Synthcast creator in the billing system."""
@@ -116,6 +126,60 @@ class CreatorAccount:
     is_active: bool = True
     trial_ends_at: Optional[float] = None
     created_at: float = field(default_factory=lambda: __import__('time').time())
+
+    # Creator-provided API keys (used on Free and Creator tiers)
+    elevenlabs_api_key: Optional[str] = None
+    elevenlabs_voice_id: Optional[str] = None
+    heygen_api_key: Optional[str] = None
+    heygen_avatar_id: Optional[str] = None
+    openai_api_key: Optional[str] = None
+
+    @property
+    def uses_managed_keys(self) -> bool:
+        """Pro and Studio tiers use Synthcast master API keys."""
+        return self.tier in MANAGED_TIERS
+
+    def get_elevenlabs_key(self) -> str:
+        """Return the correct ElevenLabs key based on tier."""
+        if self.uses_managed_keys:
+            return SYNTHCAST_ELEVENLABS_KEY
+        return self.elevenlabs_api_key or ""
+
+    def get_heygen_key(self) -> str:
+        """Return the correct HeyGen key based on tier."""
+        if self.uses_managed_keys:
+            return SYNTHCAST_HEYGEN_KEY
+        return self.heygen_api_key or ""
+
+    def get_openai_key(self) -> str:
+        """Return the correct OpenAI key based on tier."""
+        if self.uses_managed_keys and SYNTHCAST_OPENAI_KEY:
+            return SYNTHCAST_OPENAI_KEY
+        return self.openai_api_key or os.getenv("OPENAI_API_KEY", "")
+
+    def has_voice_configured(self) -> bool:
+        """Check if voice is ready to use."""
+        if self.uses_managed_keys:
+            return bool(SYNTHCAST_ELEVENLABS_KEY and self.elevenlabs_voice_id)
+        return bool(self.elevenlabs_api_key and self.elevenlabs_voice_id)
+
+    def has_avatar_configured(self) -> bool:
+        """Check if video avatar is ready to use."""
+        if self.uses_managed_keys:
+            return bool(SYNTHCAST_HEYGEN_KEY and self.heygen_avatar_id)
+        return bool(self.heygen_api_key and self.heygen_avatar_id)
+
+    def missing_keys(self) -> list[str]:
+        """Return list of missing API keys for this tier."""
+        missing = []
+        if self.tier in [CreatorTier.FREE, CreatorTier.CREATOR]:
+            if not self.elevenlabs_api_key:
+                missing.append("ElevenLabs API key")
+            if not self.elevenlabs_voice_id:
+                missing.append("ElevenLabs Voice ID")
+            if not self.openai_api_key:
+                missing.append("OpenAI API key")
+        return missing
 
     @property
     def config(self) -> TierConfig:
