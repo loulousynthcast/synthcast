@@ -20,7 +20,7 @@ from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
 from pydantic import BaseModel, Field
 
 from dotenv import load_dotenv
@@ -139,6 +139,85 @@ class SessionStatus(BaseModel):
     responses_spoken: int
     queue_size: int
     memory_stats: Optional[dict]
+
+
+
+
+# ── LEGAL PAGES ──────────────────────────────────────────────────────────────
+
+@app.get("/privacy", response_class=HTMLResponse, tags=["legal"])
+async def privacy_policy():
+    return """<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Synthcast Privacy Policy</title>
+<style>body{font-family:system-ui,sans-serif;max-width:800px;margin:40px auto;padding:0 20px;color:#1a1a1a;line-height:1.7}h1{font-size:2em;margin-bottom:8px}h2{margin-top:32px;font-size:1.2em}p,li{color:#333}a{color:#5B4FD4}.header{background:#07070A;color:white;padding:20px;border-radius:8px;margin-bottom:32px}.logo{font-size:1.4em;font-weight:700;letter-spacing:.05em}</style>
+</head><body>
+<div class="header"><div class="logo">SYNTHCAST</div><div style="font-size:.85em;opacity:.7;margin-top:4px">Privacy Policy</div></div>
+<h1>Privacy Policy</h1>
+<p><strong>Last updated: May 2026</strong></p>
+<p>Synthcast ("we", "us", or "our") operates the Synthcast platform, an AI-powered live streaming service. This Privacy Policy explains how we collect, use, and protect your information.</p>
+<h2>1. Information We Collect</h2>
+<ul>
+<li><strong>Account information:</strong> Name, email address, and username when you register.</li>
+<li><strong>Stream data:</strong> Comments, usernames, and interactions from your live streams for the purpose of generating AI responses.</li>
+<li><strong>API keys:</strong> Third-party API keys you provide (ElevenLabs, HeyGen, OpenAI) are stored encrypted and used solely to power your avatar.</li>
+<li><strong>Usage data:</strong> Session duration, comment counts, and engagement metrics.</li>
+</ul>
+<h2>2. How We Use Your Information</h2>
+<ul>
+<li>To operate and improve the Synthcast platform.</li>
+<li>To generate AI responses to your live stream viewers.</li>
+<li>To process payments via Stripe.</li>
+<li>To send service-related communications.</li>
+</ul>
+<h2>3. TikTok Data</h2>
+<p>When you connect your TikTok account, Synthcast accesses live stream comment data via the TikTok Live API. This data is used in real time to generate responses and is not stored beyond your active session. We do not sell or share TikTok user data with third parties.</p>
+<h2>4. Data Sharing</h2>
+<p>We do not sell your personal data. We share data only with service providers necessary to operate Synthcast (Stripe for payments, Railway for hosting, OpenAI for AI responses).</p>
+<h2>5. Data Security</h2>
+<p>We implement industry-standard security measures to protect your data. API keys are stored encrypted. We use HTTPS for all communications.</p>
+<h2>6. Your Rights</h2>
+<p>You may request deletion of your account and associated data at any time by contacting us at privacy@synthcast.io.</p>
+<h2>7. Contact</h2>
+<p>For privacy questions: <a href="mailto:privacy@synthcast.io">privacy@synthcast.io</a></p>
+</body></html>"""
+
+
+@app.get("/terms", response_class=HTMLResponse, tags=["legal"])
+async def terms_of_service():
+    return """<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Synthcast Terms of Service</title>
+<style>body{font-family:system-ui,sans-serif;max-width:800px;margin:40px auto;padding:0 20px;color:#1a1a1a;line-height:1.7}h1{font-size:2em;margin-bottom:8px}h2{margin-top:32px;font-size:1.2em}p,li{color:#333}a{color:#5B4FD4}.header{background:#07070A;color:white;padding:20px;border-radius:8px;margin-bottom:32px}.logo{font-size:1.4em;font-weight:700;letter-spacing:.05em}</style>
+</head><body>
+<div class="header"><div class="logo">SYNTHCAST</div><div style="font-size:.85em;opacity:.7;margin-top:4px">Terms of Service</div></div>
+<h1>Terms of Service</h1>
+<p><strong>Last updated: May 2026</strong></p>
+<p>By using Synthcast, you agree to these Terms of Service. Please read them carefully.</p>
+<h2>1. Service Description</h2>
+<p>Synthcast is an AI-powered live streaming platform that enables creators to deploy AI avatars that interact with their audience in real time. The service includes voice cloning, video avatar generation, and multi-platform streaming capabilities.</p>
+<h2>2. Eligibility</h2>
+<p>You must be at least 18 years old to use Synthcast. By using the service, you confirm you meet this requirement.</p>
+<h2>3. Acceptable Use</h2>
+<p>You agree not to use Synthcast to:</p>
+<ul>
+<li>Violate any applicable laws or regulations.</li>
+<li>Impersonate others without consent.</li>
+<li>Generate harmful, abusive, or illegal content.</li>
+<li>Violate TikTok, Twitch, YouTube, or Instagram terms of service.</li>
+<li>Attempt to reverse engineer or circumvent platform security.</li>
+</ul>
+<h2>4. Subscriptions and Billing</h2>
+<p>Synthcast offers Free, Creator ($29/mo), and Pro ($79/mo) plans. Subscriptions are billed monthly via Stripe. You may cancel at any time. Refunds are handled on a case-by-case basis.</p>
+<h2>5. AI-Generated Content</h2>
+<p>You are responsible for all content generated by your AI avatar. Synthcast provides the technology but does not control or moderate AI-generated responses in real time.</p>
+<h2>6. API Keys and Third-Party Services</h2>
+<p>Free and Creator tier users provide their own API keys. You are responsible for compliance with the terms of those third-party services (ElevenLabs, HeyGen, OpenAI).</p>
+<h2>7. Termination</h2>
+<p>We reserve the right to suspend or terminate accounts that violate these terms.</p>
+<h2>8. Limitation of Liability</h2>
+<p>Synthcast is provided "as is" without warranty. We are not liable for damages arising from use of the service.</p>
+<h2>9. Contact</h2>
+<p>For legal questions: <a href="mailto:legal@synthcast.io">legal@synthcast.io</a></p>
+</body></html>"""
 
 
 # ── HEALTH ────────────────────────────────────────────────────────────────────
