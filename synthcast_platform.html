@@ -1,0 +1,1175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Synthcast — Creator Platform</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Epilogue:ital,wght@0,300;0,400;0,500;0,700;1,300;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --void:#07070A;
+  --surface:#0C0C12;
+  --surface2:#121219;
+  --surface3:#1A1A24;
+  --signal:#5B4FD4;
+  --signal2:#8075F5;
+  --signal3:#B8B0FF;
+  --live:#00C27A;
+  --live2:#00F598;
+  --amber:#E8A030;
+  --red:#E03D3D;
+  --white:#F2F2FA;
+  --muted:#54546E;
+  --muted2:#2E2E42;
+  --border:rgba(91,79,212,0.18);
+  --border2:rgba(91,79,212,0.35);
+  --font-display:'Bebas Neue',sans-serif;
+  --font-body:'Epilogue',sans-serif;
+  --font-mono:'JetBrains Mono',monospace;
+  --glow:0 0 40px rgba(91,79,212,0.25);
+  --glow2:0 0 80px rgba(91,79,212,0.15);
+}
+
+html,body{height:100%;background:var(--void);color:var(--white);font-family:var(--font-body);overflow:hidden}
+button{cursor:pointer;font-family:var(--font-body);border:none;outline:none}
+input,select,textarea{font-family:var(--font-body);outline:none}
+::-webkit-scrollbar{width:3px}
+::-webkit-scrollbar-thumb{background:var(--muted2);border-radius:2px}
+
+/* ── GRAIN OVERLAY ── */
+body::after{
+  content:'';position:fixed;inset:0;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E");
+  pointer-events:none;z-index:9999;opacity:0.3;
+}
+
+/* ── ANIMATIONS ── */
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.7)}}
+@keyframes scan{0%{transform:translateY(-100%)}100%{transform:translateY(100vh)}}
+@keyframes waveBar{0%,100%{transform:scaleY(1);opacity:1}50%{transform:scaleY(.4);opacity:.5}}
+@keyframes slideIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
+@keyframes glow{0%,100%{box-shadow:0 0 20px rgba(91,79,212,0.3)}50%{box-shadow:0 0 60px rgba(91,79,212,0.6)}}
+
+/* ── LAYOUT ── */
+#app{display:flex;height:100vh;overflow:hidden}
+
+/* ── SIDEBAR ── */
+.sidebar{
+  width:220px;flex-shrink:0;
+  background:var(--surface);
+  border-right:1px solid var(--border);
+  display:flex;flex-direction:column;
+  padding:0;position:relative;overflow:hidden;
+}
+
+.sidebar::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,var(--signal),transparent);
+}
+
+.sidebar-logo{
+  padding:24px 20px 20px;
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:10px;
+}
+
+.wave-logo{display:flex;align-items:center;gap:2px;height:22px}
+.wave-logo span{
+  display:block;width:3px;border-radius:2px;
+  background:var(--signal2);
+}
+
+.logo-text{font-family:var(--font-display);font-size:20px;letter-spacing:0.05em;color:var(--white)}
+.logo-text em{color:var(--signal3);font-style:normal}
+
+.sidebar-nav{flex:1;padding:16px 0;overflow-y:auto}
+
+.nav-section{
+  padding:0 12px;margin-bottom:6px;
+  font-size:9px;font-family:var(--font-mono);
+  color:var(--muted);letter-spacing:0.15em;text-transform:uppercase;
+  padding-top:16px;padding-bottom:6px;
+}
+
+.nav-item{
+  display:flex;align-items:center;gap:10px;
+  padding:9px 16px;margin:1px 8px;
+  border-radius:6px;cursor:pointer;
+  font-size:13px;font-weight:400;color:var(--muted);
+  transition:all .15s;position:relative;
+  border:1px solid transparent;
+}
+
+.nav-item:hover{background:var(--surface2);color:var(--white)}
+
+.nav-item.active{
+  background:rgba(91,79,212,0.12);
+  border-color:var(--border2);
+  color:var(--white);
+}
+
+.nav-item.active::before{
+  content:'';position:absolute;left:-8px;top:50%;transform:translateY(-50%);
+  width:3px;height:16px;background:var(--signal2);border-radius:2px;
+}
+
+.nav-icon{width:16px;height:16px;opacity:.7;flex-shrink:0}
+.nav-item.active .nav-icon{opacity:1}
+
+.nav-badge{
+  margin-left:auto;font-size:10px;font-family:var(--font-mono);
+  padding:2px 6px;border-radius:4px;
+  background:rgba(91,79,212,0.2);color:var(--signal3);
+}
+
+.nav-badge.live{background:rgba(0,194,122,0.15);color:var(--live2)}
+
+.sidebar-bottom{
+  padding:16px;border-top:1px solid var(--border);
+}
+
+.creator-card{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 12px;border-radius:8px;
+  background:var(--surface2);border:1px solid var(--border);
+  cursor:pointer;transition:border-color .15s;
+}
+.creator-card:hover{border-color:var(--border2)}
+
+.creator-avatar{
+  width:32px;height:32px;border-radius:50%;
+  background:linear-gradient(135deg,var(--signal),var(--signal2));
+  display:flex;align-items:center;justify-content:center;
+  font-size:12px;font-weight:700;color:var(--white);flex-shrink:0;
+}
+
+.creator-info{flex:1;min-width:0}
+.creator-name{font-size:12px;font-weight:500;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.creator-tier{font-size:10px;color:var(--signal3);font-family:var(--font-mono)}
+
+/* ── MAIN CONTENT ── */
+.main{flex:1;overflow:hidden;display:flex;flex-direction:column}
+
+/* ── TOPBAR ── */
+.topbar{
+  height:52px;flex-shrink:0;
+  background:var(--surface);
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;
+  padding:0 24px;gap:16px;
+}
+
+.topbar-title{font-family:var(--font-display);font-size:22px;letter-spacing:0.05em;flex:1}
+
+.live-indicator{
+  display:flex;align-items:center;gap:7px;
+  padding:5px 12px;border-radius:20px;
+  font-size:11px;font-family:var(--font-mono);font-weight:500;
+  letter-spacing:0.08em;text-transform:uppercase;
+}
+
+.live-indicator.offline{
+  background:rgba(82,82,110,0.2);border:1px solid var(--muted2);color:var(--muted);
+}
+
+.live-indicator.online{
+  background:rgba(0,194,122,0.12);border:1px solid rgba(0,194,122,0.35);color:var(--live2);
+  animation:glow 2s ease infinite;
+}
+
+.live-dot{width:7px;height:7px;border-radius:50%}
+.offline .live-dot{background:var(--muted)}
+.online .live-dot{background:var(--live);animation:pulse 1.2s ease-in-out infinite}
+
+.btn-go-live{
+  padding:8px 20px;border-radius:7px;
+  font-size:12px;font-weight:600;font-family:var(--font-display);
+  letter-spacing:0.08em;cursor:pointer;transition:all .15s;
+}
+
+.btn-go-live.start{
+  background:var(--signal);color:var(--white);border:none;
+}
+.btn-go-live.start:hover{background:var(--signal2);transform:translateY(-1px)}
+
+.btn-go-live.stop{
+  background:rgba(224,61,61,0.15);border:1px solid rgba(224,61,61,0.35);
+  color:var(--red);
+}
+.btn-go-live.stop:hover{background:rgba(224,61,61,0.25)}
+
+/* ── CONTENT AREA ── */
+.content{flex:1;overflow-y:auto;padding:24px}
+
+/* ── ONBOARDING SCREEN ── */
+.onboarding{
+  max-width:680px;margin:0 auto;
+  animation:fadeUp .6s ease both;
+}
+
+.onboarding-header{margin-bottom:40px;text-align:center}
+
+.onboarding-eyebrow{
+  font-size:11px;font-family:var(--font-mono);color:var(--signal3);
+  letter-spacing:0.15em;text-transform:uppercase;margin-bottom:12px;
+}
+
+.onboarding-title{
+  font-family:var(--font-display);font-size:52px;
+  letter-spacing:0.05em;line-height:1;
+  margin-bottom:12px;
+}
+
+.onboarding-title span{color:var(--signal3)}
+
+.onboarding-sub{font-size:15px;color:var(--muted);line-height:1.7;font-weight:300}
+
+/* Steps */
+.steps{display:flex;gap:8px;margin-bottom:32px;justify-content:center}
+
+.step-pill{
+  display:flex;align-items:center;gap:6px;
+  padding:5px 14px;border-radius:20px;font-size:11px;
+  font-family:var(--font-mono);border:1px solid var(--muted2);color:var(--muted);
+  cursor:pointer;transition:all .15s;
+}
+
+.step-pill.active{
+  background:rgba(91,79,212,0.15);border-color:var(--border2);color:var(--signal3);
+}
+
+.step-pill.done{
+  background:rgba(0,194,122,0.1);border-color:rgba(0,194,122,0.3);color:var(--live2);
+}
+
+.step-num{
+  width:16px;height:16px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:9px;font-weight:700;
+  background:var(--muted2);color:var(--muted);
+}
+
+.step-pill.active .step-num{background:var(--signal);color:var(--white)}
+.step-pill.done .step-num{background:var(--live);color:var(--white)}
+
+/* Step cards */
+.step-card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:16px;padding:32px;
+  animation:fadeUp .4s ease both;
+}
+
+.step-card-header{margin-bottom:28px}
+.step-card-num{
+  font-size:11px;font-family:var(--font-mono);color:var(--signal3);
+  letter-spacing:0.1em;margin-bottom:8px;
+}
+.step-card-title{font-family:var(--font-display);font-size:32px;letter-spacing:0.04em;margin-bottom:6px}
+.step-card-sub{font-size:13px;color:var(--muted);font-weight:300}
+
+.form-row{margin-bottom:20px}
+.form-label{
+  display:block;font-size:11px;font-family:var(--font-mono);
+  color:var(--muted);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:7px;
+}
+.form-input{
+  width:100%;padding:11px 14px;
+  background:var(--surface2);border:1px solid var(--muted2);
+  border-radius:8px;color:var(--white);font-size:14px;
+  transition:border-color .15s;
+}
+.form-input:focus{border-color:var(--signal2)}
+.form-input::placeholder{color:var(--muted)}
+
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+
+.slider-row{margin-bottom:20px}
+.slider-header{display:flex;justify-content:space-between;margin-bottom:7px}
+.slider-label{font-size:11px;font-family:var(--font-mono);color:var(--muted);letter-spacing:0.08em;text-transform:uppercase}
+.slider-val{font-size:11px;font-family:var(--font-mono);color:var(--signal3)}
+input[type=range]{width:100%;accent-color:var(--signal2);height:4px}
+
+.tag-area{
+  display:flex;flex-wrap:wrap;gap:6px;
+  padding:10px;background:var(--surface2);border:1px solid var(--muted2);
+  border-radius:8px;min-height:48px;margin-bottom:8px;
+}
+.tag{
+  display:flex;align-items:center;gap:4px;
+  padding:3px 10px;border-radius:4px;
+  background:rgba(91,79,212,0.15);border:1px solid var(--border2);
+  font-size:11px;color:var(--signal3);
+}
+.tag-remove{background:none;color:var(--muted);font-size:12px;padding:0;line-height:1;cursor:pointer}
+.tag-remove:hover{color:var(--red)}
+
+.tag-input{
+  background:none;border:none;color:var(--white);font-size:12px;
+  outline:none;flex:1;min-width:120px;
+}
+.tag-input::placeholder{color:var(--muted)}
+
+.step-actions{display:flex;justify-content:space-between;margin-top:28px;gap:12px}
+
+.btn-back{
+  padding:10px 20px;border-radius:8px;font-size:13px;font-weight:500;
+  background:transparent;border:1px solid var(--muted2);color:var(--muted);
+  transition:all .15s;
+}
+.btn-back:hover{border-color:var(--border2);color:var(--white)}
+
+.btn-next{
+  padding:10px 28px;border-radius:8px;font-size:13px;font-weight:600;
+  background:var(--signal);color:var(--white);border:none;
+  transition:all .15s;margin-left:auto;
+}
+.btn-next:hover{background:var(--signal2);transform:translateY(-1px)}
+
+/* ── DASHBOARD SCREEN ── */
+.dashboard{animation:fadeUp .5s ease both}
+
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+
+.stat-card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:12px;padding:16px 18px;
+}
+.stat-label{font-size:10px;font-family:var(--font-mono);color:var(--muted);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:8px}
+.stat-value{font-family:var(--font-display);font-size:28px;letter-spacing:0.03em;color:var(--white);line-height:1}
+.stat-sub{font-size:11px;color:var(--muted);margin-top:4px}
+.stat-card.highlight{border-color:var(--border2);background:rgba(91,79,212,0.06)}
+.stat-card.live-card{border-color:rgba(0,194,122,0.3);background:rgba(0,194,122,0.05)}
+
+.dashboard-grid{display:grid;grid-template-columns:1fr 320px;gap:16px}
+
+.comment-panel{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:12px;overflow:hidden;display:flex;flex-direction:column;
+  height:420px;
+}
+
+.panel-header{
+  padding:14px 18px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;flex-shrink:0;
+}
+.panel-title{font-size:12px;font-family:var(--font-mono);color:var(--muted);letter-spacing:0.08em;text-transform:uppercase}
+
+.comment-feed{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px}
+
+.comment-item{
+  padding:10px 12px;border-radius:8px;
+  border:1px solid var(--border);background:var(--surface2);
+  animation:slideIn .3s ease both;
+}
+
+.comment-item.skipped{opacity:0.4;background:transparent}
+
+.comment-meta{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+
+.comment-type{
+  width:18px;height:18px;border-radius:3px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:8px;font-weight:700;font-family:var(--font-mono);flex-shrink:0;
+}
+
+.comment-username{font-size:11px;font-weight:600;color:var(--signal3)}
+.comment-time{margin-left:auto;font-size:10px;color:var(--muted);font-family:var(--font-mono)}
+.comment-text{font-size:12px;color:var(--white);margin-bottom:4px;padding-left:26px}
+.comment-response{
+  font-size:11px;color:var(--signal3);
+  padding-left:26px;padding-right:4px;
+  border-left:2px solid var(--signal);margin-left:26px;
+}
+
+/* Right panels */
+.right-panels{display:flex;flex-direction:column;gap:12px}
+
+.mini-panel{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:12px;overflow:hidden;
+}
+
+.stat-list{padding:12px}
+.stat-list-item{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:8px 0;border-bottom:1px solid var(--border);font-size:12px;
+}
+.stat-list-item:last-child{border-bottom:none}
+.stat-list-label{color:var(--muted)}
+.stat-list-value{font-family:var(--font-mono);font-size:12px;color:var(--white)}
+.stat-list-value.green{color:var(--live2)}
+.stat-list-value.amber{color:var(--amber)}
+
+/* Platform badges */
+.platforms-row{display:flex;gap:6px;padding:14px 18px;flex-wrap:wrap}
+.platform-badge{
+  padding:4px 10px;border-radius:4px;font-size:10px;
+  font-family:var(--font-mono);border:1px solid var(--muted2);color:var(--muted);
+}
+.platform-badge.connected{border-color:rgba(0,194,122,0.35);color:var(--live2);background:rgba(0,194,122,0.08)}
+
+/* ── WELCOME MODAL ── */
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(7,7,10,0.85);
+  backdrop-filter:blur(8px);z-index:100;
+  display:flex;align-items:center;justify-content:center;
+  animation:fadeUp .4s ease both;
+}
+
+.modal{
+  background:var(--surface);border:1px solid var(--border2);
+  border-radius:20px;padding:48px;max-width:480px;width:90%;
+  text-align:center;position:relative;
+  box-shadow:var(--glow2);
+}
+
+.modal::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,transparent,var(--signal),var(--signal2),transparent);
+  border-radius:20px 20px 0 0;
+}
+
+.modal-logo{
+  display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:24px;
+}
+
+.modal-title{font-family:var(--font-display);font-size:38px;letter-spacing:0.05em;margin-bottom:10px}
+.modal-title span{color:var(--signal3)}
+.modal-sub{font-size:14px;color:var(--muted);line-height:1.7;font-weight:300;margin-bottom:32px}
+
+.modal-btn{
+  width:100%;padding:14px;border-radius:10px;
+  font-family:var(--font-display);font-size:18px;letter-spacing:0.08em;
+  background:var(--signal);color:var(--white);border:none;
+  cursor:pointer;transition:all .15s;margin-bottom:10px;
+}
+.modal-btn:hover{background:var(--signal2);transform:translateY(-2px);box-shadow:var(--glow)}
+
+.modal-login{
+  font-size:12px;color:var(--muted);
+  padding:10px;border-radius:8px;background:transparent;border:1px solid var(--muted2);
+  width:100%;cursor:pointer;transition:all .15s;
+}
+.modal-login:hover{border-color:var(--border2);color:var(--white)}
+
+/* Scan line effect */
+.scan-line{
+  position:fixed;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,transparent,rgba(91,79,212,0.4),transparent);
+  animation:scan 4s linear infinite;pointer-events:none;z-index:50;
+}
+</style>
+</head>
+<body>
+
+<div class="scan-line"></div>
+
+<!-- ── WELCOME MODAL ── -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <div class="modal-logo">
+      <div class="wave-logo" id="modal-wave">
+        <span style="height:10px;animation:waveBar 1.4s ease-in-out 0s infinite"></span>
+        <span style="height:16px;animation:waveBar 1.4s ease-in-out 0.1s infinite"></span>
+        <span style="height:22px;animation:waveBar 1.4s ease-in-out 0.2s infinite"></span>
+        <span style="height:16px;animation:waveBar 1.4s ease-in-out 0.3s infinite"></span>
+        <span style="height:10px;animation:waveBar 1.4s ease-in-out 0.4s infinite"></span>
+      </div>
+      <span class="logo-text">SYNTH<em>CAST</em></span>
+    </div>
+    <h1 class="modal-title">YOUR AVATAR.<br><span>ALWAYS LIVE.</span></h1>
+    <p class="modal-sub">Build your AI avatar. Configure your agent.<br>Go live on every platform — even when you're not there.</p>
+    <button class="modal-btn" onclick="startOnboarding()">CREATE YOUR AVATAR</button>
+    <button class="modal-login" onclick="goToDashboard()">Already have an account → Sign in</button>
+  </div>
+</div>
+
+<!-- ── MAIN APP ── -->
+<div id="app" style="display:none">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sidebar-logo">
+      <div class="wave-logo" id="sidebar-wave">
+        <span style="height:8px"></span>
+        <span style="height:13px"></span>
+        <span style="height:18px"></span>
+        <span style="height:13px"></span>
+        <span style="height:8px"></span>
+      </div>
+      <span class="logo-text" style="font-size:17px">SYNTH<em>CAST</em></span>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section">Studio</div>
+      <div class="nav-item active" onclick="switchTab('dashboard')">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.3"/><rect x="9" y="2" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.3"/><rect x="2" y="9" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.3"/><rect x="9" y="9" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.3"/></svg>
+        Dashboard
+        <span class="nav-badge live" id="live-badge" style="display:none">LIVE</span>
+      </div>
+      <div class="nav-item" onclick="switchTab('avatar')">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="3" stroke="currentColor" strokeWidth="1.3"/><path d="M2 14c0-3.314 2.686-5 6-5s6 1.686 6 5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>
+        Avatar Builder
+      </div>
+      <div class="nav-item" onclick="switchTab('agent')">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5.5" stroke="currentColor" strokeWidth="1.3"/><path d="M5.5 8h5M8 5.5v5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>
+        Agent Config
+      </div>
+      <div class="nav-item" onclick="switchTab('brandkit')">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M2 8h8M2 12h10" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>
+        Brand Kit
+      </div>
+
+      <div class="nav-section">Distribution</div>
+      <div class="nav-item" onclick="switchTab('platforms')">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5.5" stroke="currentColor" strokeWidth="1.3"/><path d="M8 2.5C8 2.5 5.5 5 5.5 8s2.5 5.5 2.5 5.5M8 2.5C8 2.5 10.5 5 10.5 8S8 13.5 8 13.5M2.5 8h11" stroke="currentColor" strokeWidth="1.3"/></svg>
+        Platforms
+        <span class="nav-badge" id="platform-count">1</span>
+      </div>
+      <div class="nav-item" onclick="switchTab('audience')">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><circle cx="6" cy="5" r="2.5" stroke="currentColor" strokeWidth="1.3"/><path d="M1 13c0-2.76 2.24-4 5-4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/><circle cx="12" cy="6" r="2" stroke="currentColor" strokeWidth="1.3"/><path d="M10 13c0-1.66 1.34-3 3-3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>
+        Audience
+      </div>
+
+      <div class="nav-section">Business</div>
+      <div class="nav-item" onclick="switchTab('billing')">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><rect x="2" y="4" width="12" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.3"/><path d="M2 7h12" stroke="currentColor" strokeWidth="1.3"/></svg>
+        Billing
+        <span class="nav-badge">Creator</span>
+      </div>
+      <div class="nav-item" onclick="switchTab('analytics')">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><path d="M2 12l3-4 3 2 3-5 3 2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        Analytics
+      </div>
+    </nav>
+
+    <div class="sidebar-bottom">
+      <div class="creator-card">
+        <div class="creator-avatar">L</div>
+        <div class="creator-info">
+          <div class="creator-name">Louguens</div>
+          <div class="creator-tier">Creator · 87 days left</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+    <!-- TOPBAR -->
+    <div class="topbar">
+      <div class="topbar-title" id="page-title">DASHBOARD</div>
+      <div class="live-indicator offline" id="live-indicator">
+        <span class="live-dot"></span>
+        <span id="live-text">OFFLINE</span>
+      </div>
+      <span id="session-timer" style="font-family:var(--font-mono);font-size:13px;color:var(--live2);display:none"></span>
+      <button class="btn-go-live start" id="live-btn" onclick="toggleLive()">GO LIVE</button>
+    </div>
+
+    <!-- CONTENT -->
+    <div class="content" id="content">
+
+      <!-- DASHBOARD TAB -->
+      <div id="tab-dashboard" class="dashboard">
+        <div class="stats-row">
+          <div class="stat-card">
+            <div class="stat-label">Session Time</div>
+            <div class="stat-value" id="stat-duration">0:00</div>
+            <div class="stat-sub">minutes live</div>
+          </div>
+          <div class="stat-card highlight">
+            <div class="stat-label">Comments</div>
+            <div class="stat-value" id="stat-comments">0</div>
+            <div class="stat-sub">processed</div>
+          </div>
+          <div class="stat-card highlight">
+            <div class="stat-label">Responses</div>
+            <div class="stat-value" id="stat-responses">0</div>
+            <div class="stat-sub">spoken</div>
+          </div>
+          <div class="stat-card live-card">
+            <div class="stat-label">Gift Revenue</div>
+            <div class="stat-value" id="stat-revenue">$0</div>
+            <div class="stat-sub">this session</div>
+          </div>
+        </div>
+
+        <div class="dashboard-grid">
+          <!-- Comment Feed -->
+          <div class="comment-panel">
+            <div class="panel-header">
+              <span class="panel-title">Live Comment Feed</span>
+              <span style="font-size:10px;font-family:var(--font-mono);color:var(--muted)" id="feed-count">0 comments</span>
+            </div>
+            <div class="comment-feed" id="comment-feed">
+              <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:12px;opacity:0.4">
+                <svg width="32" height="32" viewBox="0 0 32 32" fill="none"><path d="M4 6a2 2 0 012-2h20a2 2 0 012 2v14a2 2 0 01-2 2H10l-6 6V6z" stroke="currentColor" strokeWidth="1.5"/></svg>
+                <span style="font-size:12px;color:var(--muted)">Go live to see comments</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right panels -->
+          <div class="right-panels">
+            <!-- Audience stats -->
+            <div class="mini-panel">
+              <div class="panel-header">
+                <span class="panel-title">Audience</span>
+              </div>
+              <div class="stat-list">
+                <div class="stat-list-item">
+                  <span class="stat-list-label">Unique viewers</span>
+                  <span class="stat-list-value" id="stat-viewers">0</span>
+                </div>
+                <div class="stat-list-item">
+                  <span class="stat-list-label">Repeat viewers</span>
+                  <span class="stat-list-value" id="stat-repeats">0</span>
+                </div>
+                <div class="stat-list-item">
+                  <span class="stat-list-label">Subscribers</span>
+                  <span class="stat-list-value green" id="stat-subs">0</span>
+                </div>
+                <div class="stat-list-item">
+                  <span class="stat-list-label">Gift senders</span>
+                  <span class="stat-list-value amber" id="stat-gifters">0</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Platforms -->
+            <div class="mini-panel">
+              <div class="panel-header">
+                <span class="panel-title">Active Platforms</span>
+              </div>
+              <div class="platforms-row">
+                <span class="platform-badge connected" id="plt-tiktok">TikTok</span>
+                <span class="platform-badge" id="plt-twitch">Twitch</span>
+                <span class="platform-badge" id="plt-youtube">YouTube</span>
+                <span class="platform-badge" id="plt-instagram">Instagram</span>
+              </div>
+            </div>
+
+            <!-- Queue -->
+            <div class="mini-panel">
+              <div class="panel-header">
+                <span class="panel-title">Agent Status</span>
+              </div>
+              <div class="stat-list">
+                <div class="stat-list-item">
+                  <span class="stat-list-label">Queue depth</span>
+                  <span class="stat-list-value" id="stat-queue">0</span>
+                </div>
+                <div class="stat-list-item">
+                  <span class="stat-list-label">LLM provider</span>
+                  <span class="stat-list-value green">OpenAI GPT-4o</span>
+                </div>
+                <div class="stat-list-item">
+                  <span class="stat-list-label">Voice</span>
+                  <span class="stat-list-value green">ElevenLabs</span>
+                </div>
+                <div class="stat-list-item">
+                  <span class="stat-list-label">Memory</span>
+                  <span class="stat-list-value">In-session</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- OTHER TABS (placeholder) -->
+      <div id="tab-avatar" style="display:none;animation:fadeUp .4s ease">
+        <div style="font-family:var(--font-display);font-size:36px;letter-spacing:0.05em;margin-bottom:8px">AVATAR BUILDER</div>
+        <div style="color:var(--muted);font-size:13px;margin-bottom:32px">Upload your photo and clone your voice</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;text-align:center;height:200px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;border-style:dashed">
+            <svg width="32" height="32" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="12" r="6" stroke="currentColor" strokeWidth="1.5"/><path d="M4 28c0-6.627 5.373-10 12-10s12 3.373 12 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+            <div style="font-size:13px;color:var(--muted)">Upload your photo</div>
+            <button style="padding:8px 20px;background:var(--signal);color:var(--white);border:none;border-radius:6px;font-size:12px;cursor:pointer">Choose file</button>
+          </div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;text-align:center;height:200px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;border-style:dashed">
+            <svg width="32" height="32" viewBox="0 0 32 32" fill="none"><path d="M16 4v24M8 10l3 3 3-3M8 22l3-3 3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><circle cx="16" cy="16" r="13" stroke="currentColor" strokeWidth="1.5"/></svg>
+            <div style="font-size:13px;color:var(--muted)">Clone your voice</div>
+            <button style="padding:8px 20px;background:var(--signal);color:var(--white);border:none;border-radius:6px;font-size:12px;cursor:pointer">Upload audio</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-agent" style="display:none;animation:fadeUp .4s ease">
+        <div style="font-family:var(--font-display);font-size:36px;letter-spacing:0.05em;margin-bottom:8px">AGENT CONFIG</div>
+        <div style="color:var(--muted);font-size:13px;margin-bottom:32px">Configure your AI agent's personality and behavior</div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;max-width:560px">
+          <div style="font-size:10px;font-family:var(--font-mono);color:var(--muted);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:6px">Personality</div>
+          <textarea style="width:100%;background:var(--surface2);border:1px solid var(--muted2);border-radius:8px;padding:12px;color:var(--white);font-size:13px;resize:vertical;min-height:80px" placeholder="confident, warm, direct, never sarcastic">confident, warm, direct, never sarcastic</textarea>
+          <div style="margin-top:16px;font-size:10px;font-family:var(--font-mono);color:var(--muted);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:6px">Humor Level</div>
+          <input type="range" min="1" max="10" value="5" style="width:100%;accent-color:var(--signal2)">
+          <div style="margin-top:16px;font-size:10px;font-family:var(--font-mono);color:var(--muted);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:6px">Max Response Words</div>
+          <input type="number" value="40" style="width:100%;background:var(--surface2);border:1px solid var(--muted2);border-radius:8px;padding:10px 14px;color:var(--white);font-size:13px">
+        </div>
+      </div>
+
+      <div id="tab-brandkit" style="display:none;animation:fadeUp .4s ease">
+        <div style="font-family:var(--font-display);font-size:36px;letter-spacing:0.05em;margin-bottom:8px">BRAND KIT</div>
+        <div style="color:var(--muted);font-size:13px">Safety rules, banned topics, and CTA scripts</div>
+      </div>
+      <div id="tab-platforms" style="display:none;animation:fadeUp .4s ease">
+        <div style="font-family:var(--font-display);font-size:36px;letter-spacing:0.05em;margin-bottom:8px">PLATFORMS</div>
+        <div style="color:var(--muted);font-size:13px">Connect your streaming accounts</div>
+      </div>
+      <div id="tab-audience" style="display:none;animation:fadeUp .4s ease">
+        <div style="font-family:var(--font-display);font-size:36px;letter-spacing:0.05em;margin-bottom:8px">AUDIENCE</div>
+        <div style="color:var(--muted);font-size:13px">Viewer memory and analytics</div>
+      </div>
+      <div id="tab-billing" style="display:none;animation:fadeUp .4s ease">
+        <div style="font-family:var(--font-display);font-size:36px;letter-spacing:0.05em;margin-bottom:8px">BILLING</div>
+        <div style="color:var(--muted);font-size:13px">Manage your Synthcast subscription</div>
+      </div>
+      <div id="tab-analytics" style="display:none;animation:fadeUp .4s ease">
+        <div style="font-family:var(--font-display);font-size:36px;letter-spacing:0.05em;margin-bottom:8px">ANALYTICS</div>
+        <div style="color:var(--muted);font-size:13px">Session history and performance metrics</div>
+      </div>
+
+      <!-- ONBOARDING -->
+      <div id="tab-onboarding" style="display:none">
+        <div class="onboarding">
+          <div class="onboarding-header">
+            <div class="onboarding-eyebrow">Setup · Step <span id="step-num">1</span> of 5</div>
+            <h1 class="onboarding-title" id="onboarding-title">BUILD YOUR<br><span>IDENTITY</span></h1>
+            <p class="onboarding-sub" id="onboarding-sub">Tell us about yourself. Your avatar will speak in your name, your voice, and your style.</p>
+          </div>
+
+          <div class="steps">
+            <div class="step-pill active" id="pill-1"><span class="step-num">1</span>Identity</div>
+            <div class="step-pill" id="pill-2"><span class="step-num">2</span>Personality</div>
+            <div class="step-pill" id="pill-3"><span class="step-num">3</span>Safety</div>
+            <div class="step-pill" id="pill-4"><span class="step-num">4</span>API Keys</div>
+            <div class="step-pill" id="pill-5"><span class="step-num">5</span>Avatar</div>
+          </div>
+
+          <!-- Step 1 -->
+          <div class="step-card" id="step-1">
+            <div class="step-card-header">
+              <div class="step-card-num">01 — IDENTITY</div>
+              <h2 class="step-card-title">Who are you?</h2>
+              <p class="step-card-sub">This is how your avatar will introduce itself on stream.</p>
+            </div>
+            <div class="form-grid">
+              <div class="form-row">
+                <label class="form-label">Your name</label>
+                <input class="form-input" placeholder="Louguens" value="Louguens">
+              </div>
+              <div class="form-row">
+                <label class="form-label">Avatar name</label>
+                <input class="form-input" placeholder="AI Louguens" value="AI Louguens">
+              </div>
+            </div>
+            <div class="form-row">
+              <label class="form-label">TikTok handle</label>
+              <input class="form-input" placeholder="@louguensjb" value="@louguensjb">
+            </div>
+            <div class="form-row">
+              <label class="form-label">What do you create?</label>
+              <input class="form-input" placeholder="Lifestyle content, music, coaching...">
+            </div>
+            <div class="step-actions">
+              <button class="btn-next" onclick="nextStep(2)">NEXT →</button>
+            </div>
+          </div>
+
+          <!-- Step 2 -->
+          <div class="step-card" id="step-2" style="display:none">
+            <div class="step-card-header">
+              <div class="step-card-num">02 — PERSONALITY</div>
+              <h2 class="step-card-title">How do you talk?</h2>
+              <p class="step-card-sub">Your avatar will match your energy, humor, and communication style.</p>
+            </div>
+            <div class="form-row">
+              <label class="form-label">Personality description</label>
+              <input class="form-input" placeholder="confident, warm, direct, never sarcastic">
+            </div>
+            <div class="slider-row">
+              <div class="slider-header">
+                <span class="slider-label">Humor level</span>
+                <span class="slider-val" id="humor-val">5/10</span>
+              </div>
+              <input type="range" min="1" max="10" value="5" oninput="document.getElementById('humor-val').textContent=this.value+'/10'">
+            </div>
+            <div class="slider-row">
+              <div class="slider-header">
+                <span class="slider-label">Formality</span>
+                <span class="slider-val" id="formal-val">5/10</span>
+              </div>
+              <input type="range" min="1" max="10" value="5" oninput="document.getElementById('formal-val').textContent=this.value+'/10'">
+            </div>
+            <div class="form-row">
+              <label class="form-label">Call to action scripts</label>
+              <div class="tag-area" id="cta-tags">
+                <span class="tag">Follow for more! <button class="tag-remove" onclick="removeTag(this)">×</button></span>
+                <span class="tag">Subscribe! <button class="tag-remove" onclick="removeTag(this)">×</button></span>
+                <input class="tag-input" placeholder="Add a CTA and press Enter..." onkeydown="addTag(event,'cta-tags')">
+              </div>
+            </div>
+            <div class="step-actions">
+              <button class="btn-back" onclick="nextStep(1)">← BACK</button>
+              <button class="btn-next" onclick="nextStep(3)">NEXT →</button>
+            </div>
+          </div>
+
+          <!-- Step 3 -->
+          <div class="step-card" id="step-3" style="display:none">
+            <div class="step-card-header">
+              <div class="step-card-num">03 — SAFETY</div>
+              <h2 class="step-card-title">What are your limits?</h2>
+              <p class="step-card-sub">Your avatar will never discuss these topics, no matter what viewers say.</p>
+            </div>
+            <div class="form-row">
+              <label class="form-label">Banned topics</label>
+              <div class="tag-area" id="banned-tags">
+                <span class="tag">politics <button class="tag-remove" onclick="removeTag(this)">×</button></span>
+                <span class="tag">religion <button class="tag-remove" onclick="removeTag(this)">×</button></span>
+                <span class="tag">competitors <button class="tag-remove" onclick="removeTag(this)">×</button></span>
+                <input class="tag-input" placeholder="Add topic and press Enter..." onkeydown="addTag(event,'banned-tags')">
+              </div>
+            </div>
+            <div class="form-row">
+              <label class="form-label">Banned words</label>
+              <div class="tag-area" id="word-tags">
+                <input class="tag-input" placeholder="Add word and press Enter..." onkeydown="addTag(event,'word-tags')">
+              </div>
+            </div>
+            <div class="step-actions">
+              <button class="btn-back" onclick="nextStep(2)">← BACK</button>
+              <button class="btn-next" onclick="nextStep(4)" style="padding:10px 32px">NEXT →</button>
+            </div>
+          </div>
+
+          <!-- Step 4: API Keys (Free/Creator) OR Voice Setup (Pro) -->
+          <div class="step-card" id="step-4" style="display:none">
+            <div class="step-card-header">
+              <div class="step-card-num" id="step4-num">04 — API KEYS</div>
+              <h2 class="step-card-title" id="step4-title">Connect Your Services</h2>
+              <p class="step-card-sub" id="step4-sub">Add your API keys so your avatar can speak and stream.</p>
+            </div>
+
+            <!-- Free/Creator: bring own keys -->
+            <div id="step4-own-keys">
+              <div style="background:rgba(91,79,212,0.06);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:20px;font-size:12px;color:var(--muted);line-height:1.7">
+                You are on the <strong style="color:var(--signal3)" id="tier-label-step4">Creator</strong> plan.
+                Add your own API keys below. <a href="https://elevenlabs.io" target="_blank" style="color:var(--signal3)">Get ElevenLabs</a> ·
+                <a href="https://platform.openai.com" target="_blank" style="color:var(--signal3)">Get OpenAI</a>
+              </div>
+              <div class="form-row">
+                <label class="form-label">ElevenLabs API Key</label>
+                <input class="form-input" id="el-api-key" placeholder="sk_...">
+              </div>
+              <div class="form-row">
+                <label class="form-label">ElevenLabs Voice ID</label>
+                <input class="form-input" id="el-voice-id" placeholder="Your cloned voice ID">
+              </div>
+              <div class="form-row">
+                <label class="form-label">OpenAI API Key</label>
+                <input class="form-input" id="oai-key" placeholder="sk-...">
+              </div>
+            </div>
+
+            <!-- Pro: Synthcast handles everything -->
+            <div id="step4-managed" style="display:none">
+              <div style="background:rgba(0,194,122,0.06);border:1px solid rgba(0,194,122,0.3);border-radius:12px;padding:20px;text-align:center;margin-bottom:20px">
+                <div style="font-size:28px;margin-bottom:10px">✅</div>
+                <div style="font-family:var(--font-display);font-size:22px;letter-spacing:0.05em;margin-bottom:8px;color:var(--live2)">YOU ARE ALL SET</div>
+                <div style="font-size:13px;color:var(--muted);line-height:1.7">
+                  You are on the <strong style="color:var(--live2)">Pro plan</strong>.<br>
+                  Synthcast handles all API keys automatically.<br>
+                  No ElevenLabs, HeyGen, or OpenAI account needed.
+                </div>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+                <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center;font-size:11px">
+                  <div style="font-size:18px;margin-bottom:4px">🎙</div>
+                  <div style="color:var(--live2);margin-bottom:2px;font-family:var(--font-mono);font-size:10px">VOICE</div>
+                  <div style="color:var(--muted)">ElevenLabs included</div>
+                </div>
+                <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center;font-size:11px">
+                  <div style="font-size:18px;margin-bottom:4px">🎬</div>
+                  <div style="color:var(--live2);margin-bottom:2px;font-family:var(--font-mono);font-size:10px">AVATAR</div>
+                  <div style="color:var(--muted)">HeyGen included</div>
+                </div>
+                <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center;font-size:11px">
+                  <div style="font-size:18px;margin-bottom:4px">🧠</div>
+                  <div style="color:var(--live2);margin-bottom:2px;font-family:var(--font-mono);font-size:10px">AI BRAIN</div>
+                  <div style="color:var(--muted)">GPT-4o included</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="step-actions">
+              <button class="btn-back" onclick="nextStep(3)">← BACK</button>
+              <button class="btn-next" onclick="nextStep(5)">NEXT →</button>
+            </div>
+          </div>
+
+          <!-- Step 5: Voice & Photo Setup -->
+          <div class="step-card" id="step-5" style="display:none">
+            <div class="step-card-header">
+              <div class="step-card-num">05 — AVATAR SETUP</div>
+              <h2 class="step-card-title">Your Face. Your Voice.</h2>
+              <p class="step-card-sub">Upload a photo and clone your voice. This is what your AI avatar will look and sound like.</p>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+              <div style="background:var(--surface2);border:1px dashed var(--border2);border-radius:10px;padding:24px;text-align:center;cursor:pointer" onclick="document.getElementById('photo-upload').click()">
+                <div style="font-size:32px;margin-bottom:8px">📸</div>
+                <div style="font-size:13px;font-weight:600;margin-bottom:4px">Upload Photo</div>
+                <div style="font-size:11px;color:var(--muted)">Clear face photo<br>Good lighting</div>
+                <input type="file" id="photo-upload" accept="image/*" style="display:none" onchange="photoSelected(this)">
+                <div id="photo-status" style="margin-top:8px;font-size:11px;color:var(--live2);display:none">✓ Photo ready</div>
+              </div>
+              <div style="background:var(--surface2);border:1px dashed var(--border2);border-radius:10px;padding:24px;text-align:center;cursor:pointer" onclick="document.getElementById('voice-upload').click()">
+                <div style="font-size:32px;margin-bottom:8px">🎤</div>
+                <div style="font-size:13px;font-weight:600;margin-bottom:4px">Upload Voice Sample</div>
+                <div style="font-size:11px;color:var(--muted)">30-60 seconds<br>Clear speech, no music</div>
+                <input type="file" id="voice-upload" accept="audio/*" style="display:none" onchange="voiceSelected(this)">
+                <div id="voice-status" style="margin-top:8px;font-size:11px;color:var(--live2);display:none">✓ Voice ready</div>
+              </div>
+            </div>
+            <div style="font-size:12px;color:var(--muted);text-align:center;line-height:1.7;margin-bottom:4px">
+              Your photo and voice are used to create your AI avatar.<br>
+              They are processed securely and never shared.
+            </div>
+            <div class="step-actions">
+              <button class="btn-back" onclick="nextStep(4)">← BACK</button>
+              <button class="btn-next" onclick="completeOnboarding()" style="background:var(--live);padding:10px 32px">LAUNCH MY AVATAR ✓</button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+let isLive = false;
+let elapsed = 0;
+let timerInterval = null;
+let commentCount = 0;
+let responses = 0;
+let revenue = 0;
+let viewers = 0;
+let currentTab = 'dashboard';
+
+const FAKE_COMMENTS = [
+  {username:'creator_fan_88', text:'What camera are you using?', type:'Q', color:'#8075F5', bg:'rgba(128,117,245,0.12)', response:'Great question! I shoot on the Sony ZV-E10 — amazing value for the price.'},
+  {username:'gifter_king', text:'sent 1x Rose 🌹', type:'G', color:'#E8A030', bg:'rgba(232,160,48,0.12)', response:'Thank you so much gifter_king! That genuinely means a lot to me!', gift:0.05},
+  {username:'newviewer2025', text:'just followed!', type:'F', color:'#00C27A', bg:'rgba(0,194,122,0.12)', response:'Welcome newviewer2025! Really glad you\'re here, stick around!'},
+  {username:'loyal_fan_01', text:'you are the GOAT fr', type:'C', color:'#00C27A', bg:'rgba(0,194,122,0.1)', response:'Appreciate that loyal_fan_01! This community makes it all worth it.'},
+  {username:'spam_bot_99', text:'follow me follow back!!!', type:'S', color:'#54546E', bg:'rgba(84,84,110,0.08)', response:null},
+  {username:'techguru_99', text:'How long have you been creating content?', type:'Q', color:'#8075F5', bg:'rgba(128,117,245,0.12)', response:'About 3 years now! It\'s been a journey but I love every second of it.'},
+  {username:'mega_gifter', text:'sent 5x Lion 🦁', type:'G', color:'#E8A030', bg:'rgba(232,160,48,0.12)', response:'WHOA! mega_gifter that is insane, thank you so much! I see you!', gift:25.0},
+  {username:'curious_one', text:'What editing software do you use?', type:'Q', color:'#8075F5', bg:'rgba(128,117,245,0.12)', response:'I edit everything in DaVinci Resolve — free and incredibly powerful.'},
+];
+
+function startOnboarding(){
+  document.getElementById('modal').style.display='none';
+  document.getElementById('app').style.display='flex';
+  switchToOnboarding();
+}
+
+function goToDashboard(){
+  document.getElementById('modal').style.display='none';
+  document.getElementById('app').style.display='flex';
+  switchTab('dashboard');
+  animateSidebarWave();
+}
+
+function switchToOnboarding(){
+  hideAllTabs();
+  document.getElementById('tab-onboarding').style.display='block';
+  document.getElementById('page-title').textContent='SETUP';
+}
+
+function switchTab(tab){
+  currentTab = tab;
+  hideAllTabs();
+  document.getElementById('tab-'+tab).style.display='block';
+  document.getElementById('page-title').textContent=tab.toUpperCase();
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+  animateSidebarWave();
+}
+
+function hideAllTabs(){
+  ['dashboard','avatar','agent','brandkit','platforms','audience','billing','analytics','onboarding']
+    .forEach(t=>{ const el=document.getElementById('tab-'+t); if(el) el.style.display='none'; });
+}
+
+function animateSidebarWave(){
+  const wave = document.getElementById('sidebar-wave');
+  if(!wave) return;
+  wave.querySelectorAll('span').forEach((s,i)=>{
+    s.style.animation = isLive ? `waveBar ${1.2+i*0.15}s ease-in-out ${i*0.1}s infinite` : 'none';
+    s.style.background = isLive ? 'var(--live)' : 'var(--signal2)';
+  });
+}
+
+// Tier for onboarding — change to 'pro' to test Pro flow
+let onboardingTier = 'creator'; // 'free' | 'creator' | 'pro'
+
+function nextStep(n){
+  [1,2,3,4,5].forEach(i=>{
+    const el = document.getElementById('step-'+i);
+    if (el) el.style.display = i===n ? 'block' : 'none';
+    const pill = document.getElementById('pill-'+i);
+    if (pill) pill.className = 'step-pill' + (i<n?' done':i===n?' active':'');
+  });
+  document.getElementById('step-num').textContent = n;
+
+  // Step 4: show correct UI based on tier
+  if (n === 4) {
+    const ownKeys = document.getElementById('step4-own-keys');
+    const managed = document.getElementById('step4-managed');
+    const tierLabel = document.getElementById('tier-label-step4');
+    const pill4 = document.getElementById('pill-4');
+    if (onboardingTier === 'pro') {
+      if (ownKeys) ownKeys.style.display = 'none';
+      if (managed) managed.style.display = 'block';
+      if (pill4) pill4.querySelector('span:last-child').textContent = 'All Included';
+      document.getElementById('step4-num').textContent = '04 — PRO PLAN';
+      document.getElementById('step4-title').textContent = 'Everything Is Included';
+    } else {
+      if (ownKeys) ownKeys.style.display = 'block';
+      if (managed) managed.style.display = 'none';
+      if (tierLabel) tierLabel.textContent = onboardingTier.charAt(0).toUpperCase() + onboardingTier.slice(1);
+    }
+  }
+}
+
+function photoSelected(input) {
+  if (input.files && input.files[0]) {
+    document.getElementById('photo-status').style.display = 'block';
+  }
+}
+
+function voiceSelected(input) {
+  if (input.files && input.files[0]) {
+    document.getElementById('voice-status').style.display = 'block';
+  }
+}
+
+function addTag(e, containerId){
+  if(e.key !== 'Enter') return;
+  const input = e.target;
+  const val = input.value.trim();
+  if(!val) return;
+  const tag = document.createElement('span');
+  tag.className = 'tag';
+  tag.innerHTML = val + ' <button class="tag-remove" onclick="removeTag(this)">×</button>';
+  input.parentNode.insertBefore(tag, input);
+  input.value = '';
+}
+
+function removeTag(btn){ btn.parentNode.remove(); }
+
+function completeOnboarding(){
+  hideAllTabs();
+  document.getElementById('tab-dashboard').style.display='block';
+  document.getElementById('page-title').textContent='DASHBOARD';
+  document.querySelectorAll('.nav-item').forEach((n,i)=>{ if(i===0) n.classList.add('active'); else n.classList.remove('active'); });
+  animateSidebarWave();
+}
+
+function toggleLive(){
+  isLive = !isLive;
+  const btn = document.getElementById('live-btn');
+  const indicator = document.getElementById('live-indicator');
+  const liveText = document.getElementById('live-text');
+  const liveBadge = document.getElementById('live-badge');
+  const timer = document.getElementById('session-timer');
+
+  if(isLive){
+    btn.textContent = 'END SESSION';
+    btn.className = 'btn-go-live stop';
+    indicator.className = 'live-indicator online';
+    liveText.textContent = 'LIVE';
+    liveBadge.style.display = 'flex';
+    timer.style.display = 'block';
+    elapsed = 0;
+    timerInterval = setInterval(()=>{
+      elapsed++;
+      const m = Math.floor(elapsed/60), s = elapsed%60;
+      timer.textContent = m+':'+(s<10?'0':'')+s;
+      document.getElementById('stat-duration').textContent = m+':'+(s<10?'0':'')+s;
+    }, 1000);
+    startFakeComments();
+    animateSidebarWave();
+  } else {
+    btn.textContent = 'GO LIVE';
+    btn.className = 'btn-go-live start';
+    indicator.className = 'live-indicator offline';
+    liveText.textContent = 'OFFLINE';
+    liveBadge.style.display = 'none';
+    timer.style.display = 'none';
+    clearInterval(timerInterval);
+    stopFakeComments();
+    animateSidebarWave();
+  }
+}
+
+let commentInterval = null;
+let commentIdx = 0;
+
+function startFakeComments(){
+  document.getElementById('comment-feed').innerHTML = '';
+  commentInterval = setInterval(()=>{
+    const c = FAKE_COMMENTS[commentIdx % FAKE_COMMENTS.length];
+    commentIdx++;
+    addComment(c);
+    commentCount++;
+    document.getElementById('stat-comments').textContent = commentCount;
+    document.getElementById('feed-count').textContent = commentCount + ' comments';
+    if(c.response){
+      responses++;
+      document.getElementById('stat-responses').textContent = responses;
+    }
+    if(c.gift){
+      revenue += c.gift;
+      document.getElementById('stat-revenue').textContent = '$'+revenue.toFixed(2);
+    }
+    viewers = Math.min(viewers + (Math.random()>.7?1:0), 999);
+    document.getElementById('stat-viewers').textContent = viewers;
+    document.getElementById('stat-repeats').textContent = Math.floor(viewers*0.3);
+  }, 2800);
+}
+
+function stopFakeComments(){
+  clearInterval(commentInterval);
+}
+
+function addComment(c){
+  const feed = document.getElementById('comment-feed');
+  const el = document.createElement('div');
+  el.className = 'comment-item' + (c.response?'':' skipped');
+  const now = new Date();
+  const ts = now.getHours()+':'+(now.getMinutes()<10?'0':'')+now.getMinutes();
+  el.innerHTML = `
+    <div class="comment-meta">
+      <span class="comment-type" style="background:${c.bg};color:${c.color}">${c.type}</span>
+      <span class="comment-username">@${c.username}</span>
+      ${c.gift?`<span style="font-size:10px;color:var(--amber);font-family:var(--font-mono)">$${c.gift.toFixed(2)}</span>`:''}
+      <span class="comment-time">${ts}</span>
+    </div>
+    <div class="comment-text">${c.text}</div>
+    ${c.response?`<div class="comment-response">${c.response}</div>`:''}
+  `;
+  feed.appendChild(el);
+  feed.scrollTop = feed.scrollHeight;
+  if(feed.children.length > 50) feed.removeChild(feed.firstChild);
+}
+</script>
+</body>
+</html>
