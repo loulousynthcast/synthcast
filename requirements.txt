@@ -1,0 +1,32 @@
+# Synthcast — Agent Module Dependencies
+# ────────────────────────────────────────
+# Core (no extras needed for the agent engine itself)
+# The engine is pure Python 3.11+ standard library.
+
+# ── LLM Providers (install the one you use) ──────────
+# OpenAI GPT-4o (recommended for Phase 1)
+openai>=1.30.0
+
+# Anthropic Claude (alternative)
+# anthropic>=0.25.0
+
+# ── Memory (Phase 2 — Redis persistence) ─────────────
+# Uncomment when you switch from InMemoryViewerStore to RedisViewerStore
+# redis>=5.0.0
+
+# ── API Server ────────────────────────────────────────
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
+python-dotenv>=1.0.0
+pydantic>=2.7.0
+
+# ── TTS Integration (Phase 1) ─────────────────────────
+# ElevenLabs voice synthesis
+elevenlabs>=1.2.0
+
+# ── Testing ───────────────────────────────────────────
+pytest>=8.0.0
+pytest-asyncio>=0.23.0
+
+# ── Dev utilities ─────────────────────────────────────
+httpx>=0.27.0        # for async HTTP calls in the stream listener

@@ -1,0 +1,70 @@
+# Synthcast — docker-compose.yml
+# Runs the full stack locally: API + PostgreSQL + Redis
+#
+# Usage:
+#   docker-compose up          # start everything
+#   docker-compose up -d       # start in background
+#   docker-compose down        # stop everything
+#   docker-compose logs -f api # follow API logs
+
+version: "3.9"
+
+services:
+
+  # ── API SERVER ──────────────────────────────────────────────────────────────
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://synthcast:synthcast@db:5432/synthcast
+      - REDIS_URL=redis://redis:6379
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+      - STRIPE_CREATOR_PRICE_ID=${STRIPE_CREATOR_PRICE_ID}
+      - STRIPE_PRO_PRICE_ID=${STRIPE_PRO_PRICE_ID}
+      - CREATOR_NAME=${CREATOR_NAME}
+      - AVATAR_NAME=${AVATAR_NAME}
+      - LLM_PROVIDER=${LLM_PROVIDER:-openai}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - ./data:/app/data    # persist SQLite if used
+
+  # ── POSTGRESQL ──────────────────────────────────────────────────────────────
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB:       synthcast
+      POSTGRES_USER:     synthcast
+      POSTGRES_PASSWORD: synthcast
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U synthcast"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ── REDIS ───────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
