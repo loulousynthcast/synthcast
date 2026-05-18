@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Synthcast Voice Room</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Epilogue:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --void:#07070A;--surface:#0C0C12;--surface2:#121219;--surface3:#1A1A24;
+  --signal:#5B4FD4;--signal2:#8075F5;--signal3:#B8B0FF;
+  --live:#00C27A;--live2:#00F598;--amber:#E8A030;--red:#E03D3D;
+  --white:#F2F2FA;--muted:#54546E;--muted2:#2E2E42;
+  --border:rgba(91,79,212,0.18);--border2:rgba(91,79,212,0.35);
+  --font-display:'Bebas Neue',sans-serif;
+  --font-body:'Epilogue',sans-serif;
+  --font-mono:'JetBrains Mono',monospace;
+}
+html,body{min-height:100%;background:var(--void);color:var(--white);font-family:var(--font-body)}
+button{cursor:pointer;font-family:var(--font-body);border:none;outline:none}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.7)}}
+@keyframes waveBar{0%,100%{transform:scaleY(1)}50%{transform:scaleY(.25)}}
+@keyframes ripple{0%{transform:scale(1);opacity:0.5}100%{transform:scale(2.8);opacity:0}}
+@keyframes handWave{0%,100%{transform:rotate(0deg)}25%{transform:rotate(-20deg)}75%{transform:rotate(20deg)}}
+@keyframes slideIn{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:translateX(0)}}
+.container{max-width:960px;margin:0 auto;padding:20px}
+.header{display:flex;align-items:center;justify-content:space-between;padding-bottom:18px;border-bottom:1px solid var(--border);margin-bottom:24px}
+.logo{display:flex;align-items:center;gap:10px}
+.wave-logo{display:flex;align-items:center;gap:2px;height:20px}
+.wave-logo span{display:block;width:3px;border-radius:2px;background:var(--signal2)}
+.logo-text{font-family:var(--font-display);font-size:20px;letter-spacing:0.05em}
+.logo-text em{color:var(--signal3);font-style:normal}
+.room-badge{display:flex;align-items:center;gap:7px;padding:5px 14px;border-radius:20px;font-size:11px;font-family:var(--font-mono);letter-spacing:0.1em;background:rgba(0,194,122,0.1);border:1px solid rgba(0,194,122,0.3);color:var(--live2)}
+.room-dot{width:7px;height:7px;border-radius:50%;background:var(--live);animation:pulse 1.2s ease infinite}
+/* JOIN */
+.join-screen{max-width:420px;margin:40px auto;animation:fadeUp .5s ease}
+.join-card{background:var(--surface);border:1px solid var(--border2);border-radius:18px;padding:36px;text-align:center;position:relative;overflow:hidden}
+.join-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--signal),transparent)}
+.join-title{font-family:var(--font-display);font-size:36px;letter-spacing:0.05em;margin-bottom:6px}
+.join-title span{color:var(--signal3)}
+.join-sub{font-size:13px;color:var(--muted);margin-bottom:24px;line-height:1.7}
+.join-input{width:100%;padding:11px 14px;background:var(--surface2);border:1px solid var(--muted2);border-radius:8px;color:var(--white);font-size:14px;margin-bottom:10px}
+.join-input:focus{border-color:var(--signal2);outline:none}
+.join-input::placeholder{color:var(--muted)}
+.join-btn{width:100%;padding:13px;border-radius:8px;font-family:var(--font-display);font-size:20px;letter-spacing:0.08em;background:var(--signal);color:var(--white)}
+.join-btn:hover{background:var(--signal2)}
+/* ROOM */
+.room-grid{display:grid;grid-template-columns:1fr 280px;gap:16px}
+.stage{display:flex;flex-direction:column;align-items:center;margin-bottom:20px}
+.avatar-circle{width:110px;height:110px;border-radius:50%;background:linear-gradient(135deg,var(--signal),var(--signal2));display:flex;align-items:center;justify-content:center;font-size:38px;position:relative;box-shadow:0 0 50px rgba(91,79,212,0.25);margin-bottom:12px;transition:box-shadow .3s}
+.avatar-circle.speaking{box-shadow:0 0 80px rgba(91,79,212,0.6)}
+.ripple-ring{position:absolute;inset:-10px;border-radius:50%;border:2px solid var(--signal2);opacity:0;animation:ripple 2s ease-out infinite;display:none}
+.avatar-circle.speaking .ripple-ring{display:block}
+.avatar-waves{display:flex;align-items:center;gap:3px;height:18px;margin-bottom:6px}
+.avatar-waves span{display:block;width:3px;border-radius:2px;background:var(--signal2)}
+.avatar-name-d{font-family:var(--font-display);font-size:24px;letter-spacing:0.05em;margin-bottom:2px}
+.avatar-status-t{font-size:11px;font-family:var(--font-mono);color:var(--muted)}
+.avatar-status-t.speaking{color:var(--live2)}
+.avatar-status-t.listening{color:var(--signal3)}
+/* SPEAKER STAGE */
+.speaker-stage{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:14px}
+.section-label{font-size:10px;font-family:var(--font-mono);color:var(--muted);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:10px}
+.active-row{display:flex;align-items:center;gap:12px}
+.active-av{width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:var(--white);flex-shrink:0;border:2px solid var(--live)}
+.active-name{font-size:14px;font-weight:600;margin-bottom:3px}
+.active-bars{display:flex;align-items:center;gap:2px;height:14px}
+.active-bars span{display:block;width:3px;border-radius:1px;background:var(--live2)}
+.no-speaker{font-size:12px;color:var(--muted);text-align:center;padding:6px}
+/* HAND BUTTON */
+.hand-area{display:flex;flex-direction:column;align-items:center;gap:8px;margin-bottom:16px}
+.raise-btn{display:flex;align-items:center;gap:10px;padding:13px 28px;border-radius:40px;font-size:14px;font-weight:600;transition:all .2s}
+.raise-btn.idle{background:var(--surface2);border:2px solid var(--border2);color:var(--muted)}
+.raise-btn.idle:hover{border-color:var(--signal2);color:var(--signal3)}
+.raise-btn.raised{background:rgba(232,160,48,0.15);border:2px solid var(--amber);color:var(--amber)}
+.raise-btn.raised .hicon{animation:handWave 0.6s ease-in-out infinite}
+.raise-btn.speaking{background:rgba(224,61,61,0.15);border:2px solid var(--red);color:var(--red)}
+.hicon{font-size:20px}
+.hand-hint{font-size:11px;color:var(--muted);font-family:var(--font-mono);text-align:center}
+/* TRANSCRIPT */
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:12px}
+.panel-hdr{padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.panel-title{font-size:10px;font-family:var(--font-mono);color:var(--muted);letter-spacing:0.1em;text-transform:uppercase}
+.t-feed{height:220px;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:8px}
+.t-feed::-webkit-scrollbar{width:3px}
+.t-feed::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.t-msg{animation:fadeUp .3s ease}
+.t-meta{display:flex;align-items:center;gap:6px;margin-bottom:3px;font-size:10px;font-family:var(--font-mono)}
+.t-spk{padding:2px 7px;border-radius:3px;font-size:9px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase}
+.t-spk.viewer{background:rgba(91,79,212,0.15);color:var(--signal3)}
+.t-spk.avatar{background:rgba(0,194,122,0.12);color:var(--live2)}
+.t-time{color:var(--muted)}
+.t-text{font-size:12px;line-height:1.6;color:var(--white)}
+.t-text.av{color:var(--signal3);border-left:2px solid var(--signal);padding-left:8px}
+/* RIGHT */
+.right-col{display:flex;flex-direction:column;gap:12px}
+.queue-list{padding:8px}
+.q-item{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:7px;animation:slideIn .3s ease;font-size:12px}
+.q-item.current{background:rgba(0,194,122,0.08);border:1px solid rgba(0,194,122,0.2)}
+.q-pos{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-family:var(--font-mono);font-weight:700;background:var(--surface3);color:var(--muted);flex-shrink:0}
+.q-pos.first{background:rgba(0,194,122,0.2);color:var(--live2)}
+.q-empty{font-size:11px;color:var(--muted);text-align:center;padding:12px;font-family:var(--font-mono)}
+.listeners-grid{padding:10px;display:flex;flex-wrap:wrap;gap:6px}
+.l-chip{display:flex;align-items:center;gap:5px;padding:4px 9px;border-radius:16px;background:var(--surface2);border:1px solid var(--border);font-size:11px}
+.l-av{width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:var(--white)}
+.chat-panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
+.chat-feed{height:160px;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:3px}
+.chat-msg{font-size:11px;line-height:1.5;padding:2px 0;border-bottom:1px solid rgba(91,79,212,0.06)}
+.chat-user{color:var(--signal3);font-weight:600;margin-right:5px}
+.chat-input-row{display:flex;gap:6px;padding:8px;border-top:1px solid var(--border)}
+.chat-input{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--white);font-size:11px;outline:none}
+.chat-input:focus{border-color:var(--signal2)}
+.chat-input::placeholder{color:var(--muted)}
+.chat-send{padding:6px 12px;background:var(--signal);color:var(--white);border-radius:6px;font-size:11px}
+.chat-send:hover{background:var(--signal2)}
+.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);padding:11px 22px;border-radius:10px;font-size:13px;font-weight:500;z-index:100;animation:fadeUp .3s ease;background:var(--surface);border:1px solid var(--border2);box-shadow:0 8px 32px rgba(0,0,0,0.4);display:none}
+.toast.show{display:block}
+.toast.green{border-color:rgba(0,194,122,0.4);color:var(--live2)}
+.toast.amber{border-color:rgba(232,160,48,0.4);color:var(--amber)}
+</style>
+</head>
+<body>
+<div class="toast" id="toast"></div>
+<div class="container">
+  <div class="header">
+    <div class="logo">
+      <div class="wave-logo" id="hw"><span style="height:8px"></span><span style="height:13px"></span><span style="height:18px"></span><span style="height:13px"></span><span style="height:8px"></span></div>
+      <span class="logo-text">SYNTH<em>CAST</em></span>
+    </div>
+    <div class="room-badge"><span class="room-dot"></span><span id="room-label">VOICE ROOM</span></div>
+  </div>
+
+  <!-- JOIN -->
+  <div class="join-screen" id="join-screen">
+    <div class="join-card">
+      <div class="join-title">JOIN THE<br><span>VOICE ROOM</span></div>
+      <p class="join-sub">Raise your hand to speak with AI Lougens.<br>One speaker at a time — first come, first served.</p>
+      <input class="join-input" id="vname" placeholder="Your name or @username" maxlength="30" onkeydown="if(event.key==='Enter')joinRoom()">
+      <button class="join-btn" onclick="joinRoom()">JOIN ROOM &rarr;</button>
+    </div>
+  </div>
+
+  <!-- ROOM -->
+  <div id="room-screen" style="display:none">
+    <div class="stage">
+      <div class="avatar-circle" id="avcircle"><div class="ripple-ring"></div>🎙</div>
+      <div class="avatar-waves" id="avwaves">
+        <span style="height:6px;animation:waveBar 0.9s ease-in-out 0s infinite"></span>
+        <span style="height:12px;animation:waveBar 0.9s ease-in-out 0.1s infinite"></span>
+        <span style="height:18px;animation:waveBar 0.9s ease-in-out 0.2s infinite"></span>
+        <span style="height:12px;animation:waveBar 0.9s ease-in-out 0.3s infinite"></span>
+        <span style="height:6px;animation:waveBar 0.9s ease-in-out 0.4s infinite"></span>
+      </div>
+      <div class="avatar-name-d">AI LOUGENS</div>
+      <div class="avatar-status-t" id="avstatus">Listening to the room</div>
+    </div>
+
+    <div class="room-grid">
+      <div>
+        <div class="speaker-stage">
+          <div class="section-label">Now Speaking</div>
+          <div id="active-area"><div class="no-speaker">No one speaking — raise your hand to go first</div></div>
+        </div>
+
+        <div class="hand-area">
+          <button class="raise-btn idle" id="raise-btn" onclick="toggleHand()">
+            <span class="hicon" id="hicon">✋</span>
+            <span id="hlabel">Raise Hand to Speak</span>
+          </button>
+          <div class="hand-hint" id="hhint">Click to join the speaker queue</div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-hdr">
+            <span class="panel-title">Live Transcript</span>
+            <span style="font-size:10px;font-family:var(--font-mono);color:var(--muted)" id="mcount">0 exchanges</span>
+          </div>
+          <div class="t-feed" id="tfeed">
+            <div style="display:flex;align-items:center;justify-content:center;height:100%;opacity:0.3;font-size:12px;color:var(--muted)">Raise your hand to start speaking</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="right-col">
+        <div class="panel">
+          <div class="panel-hdr">
+            <span class="panel-title">Speaker Queue</span>
+            <span style="font-size:10px;font-family:var(--font-mono);color:var(--signal3)" id="qcount">0 waiting</span>
+          </div>
+          <div class="queue-list" id="qlist"><div class="q-empty">No one in queue</div></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-hdr">
+            <span class="panel-title">In Room</span>
+            <span style="font-size:10px;font-family:var(--font-mono);color:var(--muted)" id="lcount">1</span>
+          </div>
+          <div class="listeners-grid" id="lgrid"></div>
+        </div>
+
+        <div class="chat-panel">
+          <div class="panel-hdr"><span class="panel-title">Chat</span></div>
+          <div class="chat-feed" id="cfeed"></div>
+          <div class="chat-input-row">
+            <input class="chat-input" id="cinput" placeholder="Send a message..." onkeydown="if(event.key==='Enter')sendChat()">
+            <button class="chat-send" onclick="sendChat()">&rarr;</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API_URL='http://localhost:8000';
+let viewerName='',myState='idle',speakerQueue=[],currentSpeaker=null;
+let msgCount=0,isSpeaking=false,recognition=null,listeners=[];
+
+// Mic stream stored once — never ask again
+let micStream = null;
+let speakTime = 60; // seconds per speaker
+let countdownTimer = null;
+let timeLeft = 0;
+
+async function setSpeakTime(secs, btn) {
+  speakTime = secs;
+  document.querySelectorAll('#time-opts button').forEach(b => {
+    b.style.borderColor = 'var(--muted2)';
+    b.style.color = 'var(--muted)';
+    b.style.background = 'transparent';
+  });
+  btn.style.borderColor = 'var(--signal2)';
+  btn.style.color = 'var(--signal3)';
+  btn.style.background = 'rgba(91,79,212,.1)';
+}
+
+async function joinRoom(){
+  const inp=document.getElementById('vname');
+  viewerName=inp.value.trim()||'Viewer'+Math.floor(Math.random()*999);
+  // Request mic permission ONCE and store the stream
+  try{micStream = await navigator.mediaDevices.getUserMedia({audio:true})}
+  catch(e){alert('Microphone access required. Please allow it and try again.');return}
+  document.getElementById('join-screen').style.display='none';
+  document.getElementById('room-screen').style.display='block';
+  document.getElementById('room-label').textContent='ROOM · '+viewerName.toUpperCase();
+  listeners.push(viewerName);
+  addListener(viewerName);
+  animWaves(true);
+  await startSession();
+  showToast('Welcome '+viewerName+'! Raise your hand to speak with AI Lougens.','green');
+  setTimeout(async()=>{
+    const w='Welcome everyone. I am AI Lougens. Raise your hand if you want to speak with me. Each speaker gets ' + speakTime + ' seconds. I will call on you one at a time.';
+    addAvTx(w);await speakText(w);
+  },600);
+}
+
+function toggleHand(){
+  if(myState==='idle') raiseHand();
+  else if(myState==='raised') lowerHand();
+  else if(myState==='speaking') endTurn();
+}
+
+function raiseHand(){
+  myState='raised';speakerQueue.push(viewerName);updateQueue();
+  setBtn('raised','✋','Lower Hand','You are in the queue — wait for AI Lougens to call you');
+  showToast('Hand raised! You will be called when it is your turn.','amber');
+  if(!currentSpeaker) setTimeout(()=>callNext(),1500);
+}
+
+function lowerHand(){
+  myState='idle';speakerQueue=speakerQueue.filter(n=>n!==viewerName);updateQueue();
+  setBtn('idle','✋','Raise Hand to Speak','Click to join the speaker queue');
+}
+
+function endTurn(){
+  if(recognition){recognition.stop();recognition=null;}
+  myState='idle';currentSpeaker=null;
+  setBtn('idle','✋','Raise Hand to Speak','Click to join the speaker queue');
+  setActiveSpeaker(null);
+  setTimeout(()=>callNext(),500);
+}
+
+async function callNext(){
+  if(speakerQueue.length===0){currentSpeaker=null;setActiveSpeaker(null);document.getElementById('avstatus').textContent='Listening to the room';document.getElementById('avstatus').className='avatar-status-t';return;}
+  const next=speakerQueue.shift();currentSpeaker=next;updateQueue();setActiveSpeaker(next);
+  const ann=next+', you are up. Go ahead and speak.';
+  addAvTx(ann);await speakText(ann);
+  if(next===viewerName){
+    myState='speaking';
+    setBtn('speaking','🔴','End My Turn','Your mic is open — speak now. Click to end your turn.');
+    showToast('Your mic is open! Speak now.','green');
+    startListening();
+    startCountdown(speakTime);
+  }
+}
+
+function startCountdown(secs) {
+  timeLeft = secs;
+  clearInterval(countdownTimer);
+  
+  // Update button to show countdown
+  countdownTimer = setInterval(async () => {
+    timeLeft--;
+    
+    // Update button label
+    const btn = document.getElementById('raise-btn');
+    if (btn && myState === 'speaking') {
+      document.getElementById('hlabel').textContent = 'Speaking (' + timeLeft + 's left)';
+    }
+    
+    // Warn at 10 seconds
+    if (timeLeft === 10) {
+      showToast('10 seconds left!', 'amber');
+      if ('speechSynthesis' in window) {
+        const u = new SpeechSynthesisUtterance('Ten seconds remaining.');
+        u.rate = 1.1; speechSynthesis.speak(u);
+      }
+    }
+    
+    // Time is up
+    if (timeLeft <= 0) {
+      clearInterval(countdownTimer);
+      if (myState === 'speaking') {
+        if (recognition) { recognition.stop(); recognition = null; }
+        myState = 'idle';
+        currentSpeaker = null;
+        setHandBtn('idle', 'X', 'Raise Hand to Speak', 'Click to join the speaker queue');
+        setActiveSpeaker(null);
+        showToast('Time is up! Next speaker coming up.', 'amber');
+        const cutoff = viewerName + ', your time is up. Thank you! Next speaker please raise your hand.';
+        addAvatarTranscript(cutoff);
+        await speakText(cutoff);
+        setTimeout(() => callNextSpeaker(), 500);
+      }
+    }
+  }, 1000);
+}
+
+function startListening(){
+  if(!('webkitSpeechRecognition' in window)&&!('SpeechRecognition' in window)){showToast('Use Chrome for voice recognition.','amber');return;}
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  recognition=new SR();recognition.continuous=true;recognition.interimResults=true;recognition.lang='en-US';
+  let final='',timer=null;
+  recognition.onresult=e=>{
+    let interim='';
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      if(e.results[i].isFinal) final+=e.results[i][0].transcript;
+      else interim+=e.results[i][0].transcript;
+    }
+    clearTimeout(timer);
+    if(final){timer=setTimeout(async()=>{
+      if(final.trim()&&myState==='speaking'){
+        recognition.stop();
+        await processSpeech(final.trim());
+        final='';
+      }
+    },1500);}
+  };
+  recognition.onerror=e=>{if(e.error!=='no-speech')console.log('SR error:',e.error)};
+  recognition.start();
+  document.getElementById('avstatus').textContent='Listening to '+viewerName+'...';
+  document.getElementById('avstatus').className='avatar-status-t listening';
+}
+
+async function processSpeech(text){
+  if(!text||isSpeaking)return;
+  addViewerTx(viewerName,text);
+  const resp=await getResp(text);
+  if(resp){addAvTx(resp);await speakText(resp);if(myState==='speaking'&&!isSpeaking)startListening();}
+}
+
+async function getResp(text){
+  try{
+    const r=await fetch(API_URL+'/comment/process',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({platform:'voice_room',username:viewerName,text:text,gift_value:0,is_new_follower:false,is_subscriber:false})});
+    const d=await r.json();return d?d.text:null;
+  }catch(e){return 'I heard you '+viewerName+'. The API server needs to be running for real responses.';}
+}
+
+async function startSession(){
+  try{
+    await fetch(API_URL+'/session/stop',{method:'POST'});
+    await fetch(API_URL+'/session/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({brand_kit:{creator_name:'Lougens',avatar_name:'AI Lougens',personality:'confident, warm, direct, engaging host',banned_topics:['politics','religion'],banned_words:[],cta_scripts:['Follow for more!']},llm_provider:'openai',memory_backend:'memory'})});
+  }catch(e){}
+}
+
+async function speakText(text){
+  isSpeaking=true;setAvState(true);
+  return new Promise(resolve=>{
+    if('speechSynthesis' in window){
+      speechSynthesis.cancel();
+      const u=new SpeechSynthesisUtterance(text);u.rate=0.92;u.pitch=1.0;
+      u.onend=()=>{isSpeaking=false;setAvState(false);resolve()};
+      u.onerror=()=>{isSpeaking=false;setAvState(false);resolve()};
+      speechSynthesis.speak(u);
+    }else{setTimeout(()=>{isSpeaking=false;setAvState(false);resolve()},2000);}
+  });
+}
+
+function setBtn(state,icon,label,hint){
+  document.getElementById('raise-btn').className='raise-btn '+state;
+  document.getElementById('hicon').textContent=icon;
+  document.getElementById('hlabel').textContent=label;
+  document.getElementById('hhint').textContent=hint;
+}
+
+function setActiveSpeaker(name){
+  const a=document.getElementById('active-area');
+  if(!name){a.innerHTML='<div class="no-speaker">No one speaking — raise your hand to go first</div>';return;}
+  const c=strColor(name);
+  a.innerHTML='<div class="active-row"><div class="active-av" style="background:'+c+'">'+name[0].toUpperCase()+'</div><div><div class="active-name">'+name+'</div><div class="active-bars">'+[6,10,14,10,6].map((h,i)=>'<span style="height:'+h+'px;animation:waveBar 0.6s ease-in-out '+(i*0.1)+'s infinite"></span>').join('')+'</div></div></div>';
+}
+
+function updateQueue(){
+  const l=document.getElementById('qlist'),c=document.getElementById('qcount');
+  c.textContent=speakerQueue.length+' waiting';
+  if(!speakerQueue.length){l.innerHTML='<div class="q-empty">No one in queue</div>';return;}
+  l.innerHTML=speakerQueue.map((n,i)=>'<div class="q-item '+(i===0?'current':'')+'"><div class="q-pos '+(i===0?'first':'')+'">'+( i+1)+'</div><div style="flex:1">'+n+'</div><span>✋</span></div>').join('');
+}
+
+function addListener(name){
+  const g=document.getElementById('lgrid');
+  const c=document.createElement('div');c.className='l-chip';
+  c.innerHTML='<div class="l-av" style="background:'+strColor(name)+'">'+name[0].toUpperCase()+'</div><span class="listener-name">'+name+'</span>';
+  g.appendChild(c);document.getElementById('lcount').textContent=listeners.length;
+}
+
+function addViewerTx(name,text){
+  const f=document.getElementById('tfeed');
+  if(f.children.length===1&&f.children[0].style.opacity==='0.3')f.innerHTML='';
+  const e=document.createElement('div');e.className='t-msg';
+  e.innerHTML='<div class="t-meta"><span class="t-spk viewer">'+name+'</span><span class="t-time">'+gt()+'</span></div><div class="t-text">'+text+'</div>';
+  f.appendChild(e);f.scrollTop=f.scrollHeight;
+  msgCount++;document.getElementById('mcount').textContent=msgCount+' exchanges';
+}
+
+function addAvTx(text){
+  const f=document.getElementById('tfeed');
+  if(f.children.length===1&&f.children[0].style.opacity==='0.3')f.innerHTML='';
+  const e=document.createElement('div');e.className='t-msg';
+  e.innerHTML='<div class="t-meta"><span class="t-spk avatar">AI Lougens</span><span class="t-time">'+gt()+'</span></div><div class="t-text av">'+text+'</div>';
+  f.appendChild(e);f.scrollTop=f.scrollHeight;
+}
+
+function setAvState(speaking){
+  const c=document.getElementById('avcircle'),s=document.getElementById('avstatus');
+  if(speaking){c.classList.add('speaking');s.textContent='Speaking...';s.className='avatar-status-t speaking';}
+  else{c.classList.remove('speaking');s.textContent='Listening to the room';s.className='avatar-status-t';}
+}
+
+function sendChat(){
+  const i=document.getElementById('cinput'),t=i.value.trim();if(!t)return;i.value='';
+  const f=document.getElementById('cfeed'),m=document.createElement('div');m.className='chat-msg';
+  m.innerHTML='<span class="chat-user">'+viewerName+':</span>'+t;f.appendChild(m);f.scrollTop=f.scrollHeight;
+}
+
+function showToast(text,type){
+  const t=document.getElementById('toast');t.textContent=text;t.className='toast show '+type;
+  setTimeout(()=>{t.className='toast'},3500);
+}
+
+function animWaves(on){
+  document.getElementById('hw').querySelectorAll('span').forEach((s,i)=>{
+    s.style.animation=on?'waveBar '+(0.8+i*0.1)+'s ease-in-out '+(i*0.1)+'s infinite':'none';
+  });
+}
+
+function strColor(s){let h=0;for(let i=0;i<s.length;i++)h=s.charCodeAt(i)+((h<<5)-h);return'hsl('+(h%360)+',55%,38%)';}
+function gt(){const n=new Date();return n.getHours()+':'+(n.getMinutes()<10?'0':'')+n.getMinutes();}
+</script>
+</body>
+</html>
