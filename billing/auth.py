@@ -1,42 +1,37 @@
 """
 billing/auth.py
 JWT-based authentication for Synthcast creators.
-Handles signup, login, Google OAuth, and session management.
-
-Install:
-    pip install python-jose[cryptography] passlib[bcrypt] python-multipart
+Uses hashlib (built-in) instead of passlib to avoid bcrypt compatibility issues.
 """
 
 import os
 import time
 import secrets
+import hashlib
+import hmac
 from typing import Optional
 from datetime import datetime, timedelta
 
-from passlib.context import CryptContext
 from jose import JWTError, jwt
 from fastapi import HTTPException, Depends, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# ── CONFIG ────────────────────────────────────────────────────────────────────
 SECRET_KEY = os.getenv("JWT_SECRET_KEY", secrets.token_urlsafe(32))
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=12)
 security = HTTPBearer(auto_error=False)
 
 
-# ── MODELS ────────────────────────────────────────────────────────────────────
 class SignupRequest(BaseModel):
     email: str
     password: str
     name: str
-    creator_handle: Optional[str] = None  # TikTok/social handle
+    creator_handle: Optional[str] = None
 
 
 class LoginRequest(BaseModel):
@@ -60,16 +55,24 @@ class AuthenticatedCreator(BaseModel):
     tier: str
 
 
-# ── PASSWORD UTILS ────────────────────────────────────────────────────────────
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    salt = secrets.token_hex(32)
+    key = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt.encode('utf-8'), iterations=260000)
+    return f"pbkdf2:sha256:260000:{salt}:{key.hex()}"
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    try:
+        parts = hashed.split(':')
+        if len(parts) != 5 or parts[0] != 'pbkdf2':
+            return False
+        _, algo, iterations, salt, stored_key = parts
+        key = hashlib.pbkdf2_hmac(algo, plain.encode('utf-8'), salt.encode('utf-8'), iterations=int(iterations))
+        return hmac.compare_digest(key.hex(), stored_key)
+    except Exception:
+        return False
 
 
-# ── JWT UTILS ─────────────────────────────────────────────────────────────────
 def create_access_token(data: dict) -> str:
     to_encode = data.copy()
     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -82,23 +85,12 @@ def decode_token(token: str) -> dict:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         return payload
     except JWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token.",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise HTTPException(status_code=401, detail="Invalid or expired token.", headers={"WWW-Authenticate": "Bearer"})
 
 
-# ── AUTH DEPENDENCY ───────────────────────────────────────────────────────────
-async def get_current_creator(
-    credentials: HTTPAuthorizationCredentials = Depends(security)
-) -> AuthenticatedCreator:
+async def get_current_creator(credentials: HTTPAuthorizationCredentials = Depends(security)) -> AuthenticatedCreator:
     if not credentials:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated.",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise HTTPException(status_code=401, detail="Not authenticated.", headers={"WWW-Authenticate": "Bearer"})
     payload = decode_token(credentials.credentials)
     creator_id = payload.get("sub")
     if not creator_id:
@@ -111,10 +103,7 @@ async def get_current_creator(
     )
 
 
-# Optional auth — returns None if not logged in
-async def get_optional_creator(
-    credentials: HTTPAuthorizationCredentials = Depends(security)
-) -> Optional[AuthenticatedCreator]:
+async def get_optional_creator(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Optional[AuthenticatedCreator]:
     if not credentials:
         return None
     try:
