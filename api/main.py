@@ -93,6 +93,10 @@ from billing.google_auth import router as google_auth_router
 app.include_router(google_auth_router)
 from api.creole_routes import router as creole_router
 app.include_router(creole_router)
+from api.waitlist_routes import router as waitlist_router
+app.include_router(waitlist_router)
+from billing.password_reset import router as password_reset_router
+app.include_router(password_reset_router)
 
 # ── REQUEST / RESPONSE MODELS ─────────────────────────────────────────────────
 
@@ -519,6 +523,43 @@ async def clear_queue():
     state.queue.clear()
     return {"cleared": size_before, "queue_size": 0}
 
+
+
+
+# ── CREATOR PROFILES ──────────────────────────────────────────────────────────
+
+@app.get("/creator/profile/{username}", tags=["creators"])
+async def get_creator_profile(username: str):
+    """Get public creator profile by username/handle."""
+    from billing.auth_routes import _users
+
+    # Search by handle or email prefix
+    user = None
+    for u in _users.values():
+        handle = u.get("creator_handle", "").lstrip("@").lower()
+        email_prefix = u.get("email", "").split("@")[0].lower()
+        creator_id = u.get("creator_id", "").lower()
+
+        if (handle == username.lower() or
+            email_prefix == username.lower() or
+            creator_id.startswith(username.lower())):
+            user = u
+            break
+
+    if not user:
+        raise HTTPException(404, "Creator not found.")
+
+    return {
+        "name": user.get("name", "Creator"),
+        "handle": "@" + username,
+        "bio": user.get("bio", "AI-powered creator on Synthcast."),
+        "is_live": state.is_live,
+        "streams": 0,
+        "comments_handled": state.comments_processed if state.is_live else 0,
+        "platforms": ["TikTok", "Twitch", "YouTube"],
+        "tier": user.get("tier", "free"),
+        "photo_url": user.get("photo_url", None),
+    }
 
 # ── TEST ENDPOINT ─────────────────────────────────────────────────────────────
 

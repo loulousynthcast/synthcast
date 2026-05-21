@@ -95,6 +95,13 @@ async def signup(req: SignupRequest):
         "tier": "free",
     })
 
+    # Send welcome email
+    try:
+        from billing.email_service import send_welcome_email
+        send_welcome_email(email, req.name)
+    except Exception as e:
+        print(f"[Auth] Welcome email failed: {e}")
+
     return TokenResponse(
         access_token=token,
         creator_id=user["creator_id"],
