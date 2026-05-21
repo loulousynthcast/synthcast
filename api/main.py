@@ -87,6 +87,12 @@ app.add_middleware(
 
 # ── BILLING ROUTES
 app.include_router(billing_router)
+from billing.auth_routes import router as auth_router
+app.include_router(auth_router)
+from billing.google_auth import router as google_auth_router
+app.include_router(google_auth_router)
+from api.creole_routes import router as creole_router
+app.include_router(creole_router)
 
 # ── REQUEST / RESPONSE MODELS ─────────────────────────────────────────────────
 
