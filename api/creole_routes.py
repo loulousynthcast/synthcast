@@ -253,6 +253,37 @@ async def reject_suggestion(suggestion_id: str, admin_key: str = ""):
     return {"status": "rejected"}
 
 
+class EditSuggestionRequest(BaseModel):
+    creole: Optional[str] = None
+    english: Optional[str] = None
+
+
+@router.post("/edit/{suggestion_id}")
+async def edit_suggestion(suggestion_id: str, req: EditSuggestionRequest, admin_key: str = ""):
+    """Edit a suggestion before approving."""
+    if admin_key != os.getenv("ADMIN_KEY", "synthcast_admin_2026"):
+        raise HTTPException(403, "Invalid admin key.")
+
+    with SessionLocal() as db:
+        suggestion = db.query(CreoleSuggestion).filter(
+            CreoleSuggestion.id == suggestion_id
+        ).first()
+        if not suggestion:
+            raise HTTPException(404, "Suggestion not found.")
+
+        if req.creole:
+            suggestion.sentence_creole = req.creole.strip()
+        if req.english is not None:
+            suggestion.sentence_english = req.english.strip() if req.english else None
+        db.commit()
+        
+        return {
+            "status": "updated",
+            "creole": suggestion.sentence_creole,
+            "english": suggestion.sentence_english,
+        }
+
+
 @router.get("/approved-sentences")
 async def get_approved_sentences():
     """Get community-approved sentences to add to recording pool."""
