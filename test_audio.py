@@ -42,10 +42,15 @@ async def test_elevenlabs():
                 }
             )
             if resp.status_code == 200:
-                with open("/tmp/synthcast_test.mp3", "wb") as f:
+                import tempfile
+                audio_path = os.path.join(tempfile.gettempdir(), "synthcast_test.mp3")
+                with open(audio_path, "wb") as f:
                     f.write(resp.content)
                 print("✅ ElevenLabs working — playing test audio now...")
-                os.system("ffplay -nodisp -autoexit /tmp/synthcast_test.mp3 2>/dev/null || afplay /tmp/synthcast_test.mp3 2>/dev/null || start /tmp/synthcast_test.mp3")
+                if os.name == 'nt':  # Windows
+                    os.system(f'start "" "{audio_path}"')
+                else:
+                    os.system(f"ffplay -nodisp -autoexit '{audio_path}' 2>/dev/null || afplay '{audio_path}' 2>/dev/null")
                 return True
             else:
                 print(f"❌ ElevenLabs error: {resp.status_code} — {resp.text[:200]}")

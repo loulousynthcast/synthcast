@@ -112,9 +112,14 @@ async def speak_response(text: str):
             )
             if resp.status_code == 200:
                 # Save and play audio
-                with open("/tmp/response.mp3", "wb") as f:
+                import tempfile
+                audio_path = os.path.join(tempfile.gettempdir(), "synthcast_response.mp3")
+                with open(audio_path, "wb") as f:
                     f.write(resp.content)
-                os.system("ffplay -nodisp -autoexit /tmp/response.mp3 2>/dev/null")
+                if os.name == 'nt':
+                    os.system(f'start /wait "" "{audio_path}"')
+                else:
+                    os.system(f"ffplay -nodisp -autoexit '{audio_path}' 2>/dev/null")
     except Exception as e:
         print(f"[TTS] Error: {e}")
 
