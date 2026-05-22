@@ -537,12 +537,13 @@ async def clear_queue():
 @app.get("/creator/profile/{username}", tags=["creators"])
 async def get_creator_profile(username: str):
     """Get public creator profile by username/handle."""
-    from billing.auth_routes import _users
+    from billing.db_auth_store import get_user_by_email, list_all_users
 
-    # Search by handle or email prefix
+    # Search by handle, email prefix, or creator_id
     user = None
-    for u in _users.values():
-        handle = u.get("creator_handle", "").lstrip("@").lower()
+    all_users = list_all_users()
+    for u in all_users:
+        handle = (u.get("creator_handle") or "").lstrip("@").lower()
         email_prefix = u.get("email", "").split("@")[0].lower()
         creator_id = u.get("creator_id", "").lower()
 
@@ -555,17 +556,115 @@ async def get_creator_profile(username: str):
     if not user:
         raise HTTPException(404, "Creator not found.")
 
+    creator_id = user["creator_id"]
+
+    # Get analytics summary
+    total_sessions = 0
+    total_comments = 0
+    total_viewers = 0
+    platforms = ["TikTok", "Twitch", "YouTube"]
+
+    try:
+        from api.analytics_routes import SessionLocal, StreamSession
+        from sqlalchemy import func
+        with SessionLocal() as db:
+            sessions = db.query(StreamSession).filter(
+                StreamSession.creator_id == creator_id
+            ).all()
+            total_sessions = len(sessions)
+            total_comments = sum(s.comments_processed for s in sessions)
+            total_viewers = sum(s.unique_viewers for s in sessions)
+    except Exception as e:
+        print(f"[Profile] Analytics error: {e}")
+
+    # Get live status from stream session
+    from api.stream_routes import _sessions
+    session = _sessions.get(creator_id)
+    is_live = session.is_live if session else False
+
     return {
         "name": user.get("name", "Creator"),
-        "handle": "@" + username,
-        "bio": user.get("bio", "AI-powered creator on Synthcast."),
-        "is_live": state.is_live,
-        "streams": 0,
-        "comments_handled": state.comments_processed if state.is_live else 0,
-        "platforms": ["TikTok", "Twitch", "YouTube"],
+        "handle": "@" + (user.get("creator_handle") or username).lstrip("@"),
+        "bio": user.get("bio") or "AI-powered creator on Synthcast. My avatar goes live so I never miss a viewer.",
+        "avatar_name": user.get("avatar_name") or f"AI {user.get('name', 'Creator')}",
+        "photo_url": user.get("photo_url"),
+        "is_live": is_live,
+        "streams": total_sessions,
+        "comments_handled": total_comments,
+        "unique_viewers": total_viewers,
+        "platforms": platforms,
         "tier": user.get("tier", "free"),
-        "photo_url": user.get("photo_url", None),
     }
+
+# ── ADMIN ENDPOINTS ───────────────────────────────────────────────────────────
+
+@app.get("/admin/creators", tags=["admin"])
+async def admin_get_creators(admin_key: str = ""):
+    """Get all creators with stats. Admin only."""
+    if admin_key != os.getenv("ADMIN_KEY", "synthcast_admin_2026"):
+        raise HTTPException(403, "Invalid admin key.")
+
+    from billing.db_auth_store import list_all_users
+    users = list_all_users()
+
+    # Get session stats for each creator
+    creator_stats = {}
+    try:
+        from api.analytics_routes import SessionLocal, StreamSession
+        from sqlalchemy import func
+        with SessionLocal() as db:
+            results = db.query(
+                StreamSession.creator_id,
+                func.count(StreamSession.id).label("sessions"),
+                func.sum(StreamSession.comments_processed).label("comments"),
+            ).group_by(StreamSession.creator_id).all()
+            for r in results:
+                creator_stats[r.creator_id] = {
+                    "sessions": r.sessions or 0,
+                    "comments": r.comments or 0,
+                }
+    except Exception as e:
+        print(f"[Admin] Stats error: {e}")
+
+    creators = []
+    for u in users:
+        stats = creator_stats.get(u["creator_id"], {})
+        creators.append({
+            "creator_id": u["creator_id"],
+            "name": u.get("name", ""),
+            "email": u.get("email", ""),
+            "tier": u.get("tier", "free"),
+            "joined": u.get("created_at"),
+            "sessions": stats.get("sessions", 0),
+            "comments": stats.get("comments", 0),
+        })
+
+    # Sort by join date newest first
+    creators.sort(key=lambda x: x["joined"] or 0, reverse=True)
+
+    return {
+        "total": len(creators),
+        "creators": creators,
+    }
+
+
+@app.post("/admin/upgrade", tags=["admin"])
+async def admin_upgrade_creator(
+    creator_id: str,
+    tier: str,
+    admin_key: str = ""
+):
+    """Manually upgrade a creator's tier. Admin only."""
+    if admin_key != os.getenv("ADMIN_KEY", "synthcast_admin_2026"):
+        raise HTTPException(403, "Invalid admin key.")
+
+    from billing.db_auth_store import update_user
+    result = update_user(creator_id, tier=tier)
+    if not result:
+        raise HTTPException(404, "Creator not found.")
+
+    return {"status": "upgraded", "creator_id": creator_id, "tier": tier}
+
 
 # ── TEST ENDPOINT ─────────────────────────────────────────────────────────────
 

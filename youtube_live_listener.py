@@ -23,6 +23,8 @@ AVATAR_NAME       = os.getenv("AVATAR_NAME", "AI Lougens")
 CREATOR_ID        = os.getenv("CREATOR_ID", "louguens")  # Add this to Railway
 API_URL           = os.getenv("API_URL", "https://synthcast-production.up.railway.app")
 
+from language_detector import generate_multilingual_response, detect_language, get_language_name
+
 SYSTEM_PROMPT = f"""You are {AVATAR_NAME}, the AI avatar of {CREATOR_NAME}.
 You speak in first person as {CREATOR_NAME}.
 Keep responses under 40 words. Be warm, direct, and engaging.
@@ -235,8 +237,11 @@ async def main():
                 # Generate and speak response for non-spam
                 response = None
                 if comment_type != "S":
-                    response = await generate_response(text, username)
-                    print(f"[AI] Response: {response}")
+                    response, lang = await generate_multilingual_response(
+                        text, username, SYSTEM_PROMPT
+                    )
+                    lang_name = get_language_name(lang)
+                    print(f"[AI/{lang_name}] Response: {response}")
                     await speak_response(response)
 
                 # Push to dashboard
