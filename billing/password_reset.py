@@ -106,10 +106,9 @@ Expires: 30 minutes
 @router.post("/forgot-password")
 async def forgot_password(req: ForgotPasswordRequest):
     """Request a password reset email."""
-    from billing.auth_routes import _get_user_by_email
-
+    from billing.db_auth_store import get_user_by_email
     email = req.email.lower().strip()
-    user = _get_user_by_email(email)
+    user = get_user_by_email(email)
 
     # Always return success to prevent email enumeration
     if not user:
@@ -144,7 +143,7 @@ async def forgot_password(req: ForgotPasswordRequest):
 @router.post("/reset-password")
 async def reset_password(req: ResetPasswordRequest):
     """Reset password using a valid token."""
-    from billing.auth_routes import _get_user_by_email, _users
+    from billing.db_auth_store import get_user_by_email, update_user
 
     token_data = _reset_tokens.get(req.token)
 
@@ -163,13 +162,12 @@ async def reset_password(req: ResetPasswordRequest):
 
     # Update password
     email = token_data["email"]
-    user = _get_user_by_email(email)
+    user = get_user_by_email(email)
     if not user:
         raise HTTPException(404, "Account not found.")
 
     from billing.auth import hash_password
-    user["password_hash"] = hash_password(req.new_password)
-    _users[email] = user
+    update_user(user["creator_id"], password_hash=hash_password(req.new_password))
 
     # Mark token as used
     token_data["used"] = True

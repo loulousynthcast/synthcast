@@ -112,33 +112,23 @@ async def google_callback(code: str = None, state: str = None, error: str = None
 
     # Find or create account
     try:
-        from billing.auth_routes import _get_user_by_email, _create_user, _users
-        user = _get_user_by_email(email)
+        from billing.db_auth_store import get_user_by_email, create_user
+        user = get_user_by_email(email)
 
         if not user:
             # Create new account via Google
-            import uuid
-            creator_id = email.split("@")[0].lower().replace(".", "_") + "_" + str(uuid.uuid4())[:6]
-            user = {
-                "creator_id": creator_id,
-                "email": email.lower(),
-                "name": name,
-                "password_hash": f"google:{google_id}",  # No password — Google auth only
-                "tier": "free",
-                "created_at": __import__("time").time(),
-                "google_id": google_id,
-                "elevenlabs_api_key": None,
-                "elevenlabs_voice_id": None,
-                "openai_api_key": None,
-                "heygen_api_key": None,
-                "heygen_avatar_id": None,
-            }
-            _users[email.lower()] = user
+            user = create_user(
+                email=email,
+                name=name,
+                password_hash=f"google:{google_id}",
+                tier="free",
+                google_id=google_id,
+            )
 
             # Also create billing account
             try:
                 from billing.routes import account_store
-                account_store.create(creator_id, email, name)
+                account_store.create(user["creator_id"], email, name)
             except Exception as e:
                 print(f"[Google Auth] Billing account creation failed: {e}")
 

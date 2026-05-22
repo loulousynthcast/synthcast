@@ -97,6 +97,12 @@ from api.waitlist_routes import router as waitlist_router
 app.include_router(waitlist_router)
 from billing.password_reset import router as password_reset_router
 app.include_router(password_reset_router)
+from billing.stripe_checkout import router as stripe_checkout_router
+app.include_router(stripe_checkout_router)
+from api.stream_routes import router as stream_router
+app.include_router(stream_router)
+from api.analytics_routes import router as analytics_router
+app.include_router(analytics_router)
 
 # ── REQUEST / RESPONSE MODELS ─────────────────────────────────────────────────
 

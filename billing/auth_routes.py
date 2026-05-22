@@ -27,39 +27,27 @@ from billing.auth import (
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-# ── IN-MEMORY USER STORE (replace with DB later) ──────────────────────────────
-# In production this reads/writes to PostgreSQL via the Creator model
-_users = {}  # email -> {password_hash, creator_id, name, tier, created_at}
+# ── POSTGRESQL USER STORE ────────────────────────────────────────────────────
+# Accounts persist across Railway redeploys
+from billing.db_auth_store import (
+    get_user_by_email as _get_user_by_email,
+    get_user_by_id as _get_user_by_id,
+    create_user as _db_create_user,
+    update_user as _update_user,
+)
 
-
-def _get_user_by_email(email: str) -> Optional[dict]:
-    return _users.get(email.lower())
-
-
-def _get_user_by_id(creator_id: str) -> Optional[dict]:
-    for user in _users.values():
-        if user["creator_id"] == creator_id:
-            return user
-    return None
+# Keep _users as a compatibility shim for google_auth.py
+_users = {}
 
 
 def _create_user(email: str, name: str, password: str, tier: str = "free") -> dict:
-    creator_id = email.split("@")[0].lower().replace(".", "_") + "_" + str(uuid.uuid4())[:6]
-    user = {
-        "creator_id": creator_id,
-        "email": email.lower(),
-        "name": name,
-        "password_hash": hash_password(password),
-        "tier": tier,
-        "created_at": time.time(),
-        "elevenlabs_api_key": None,
-        "elevenlabs_voice_id": None,
-        "openai_api_key": None,
-        "heygen_api_key": None,
-        "heygen_avatar_id": None,
-    }
-    _users[email.lower()] = user
-    return user
+    from billing.auth import hash_password as _hash
+    return _db_create_user(
+        email=email,
+        name=name,
+        password_hash=_hash(password),
+        tier=tier,
+    )
 
 
 # ── ENDPOINTS ─────────────────────────────────────────────────────────────────
@@ -164,7 +152,7 @@ async def change_password(
         raise HTTPException(401, "Current password is incorrect.")
     if len(new_password) < 8:
         raise HTTPException(400, "New password must be at least 8 characters.")
-    user["password_hash"] = hash_password(new_password)
+    _update_user(creator.creator_id, password_hash=hash_password(new_password))
     return {"status": "password_changed"}
 
 
