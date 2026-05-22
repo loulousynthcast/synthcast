@@ -117,7 +117,18 @@ async def speak_response(text: str):
                 with open(audio_path, "wb") as f:
                     f.write(resp.content)
                 if os.name == 'nt':
-                    os.system(f'start /wait "" "{audio_path}"')
+                    # Use pygame to play MP3 through default audio device (VB-Cable)
+                    try:
+                        import pygame
+                        pygame.mixer.init()
+                        pygame.mixer.music.load(audio_path)
+                        pygame.mixer.music.play()
+                        while pygame.mixer.music.get_busy():
+                            pygame.time.wait(100)
+                        pygame.mixer.quit()
+                    except ImportError:
+                        # Fallback — install pygame: pip install pygame
+                        os.system(f'start /wait "" "{audio_path}"')
                 else:
                     os.system(f"ffplay -nodisp -autoexit '{audio_path}' 2>/dev/null")
     except Exception as e:
