@@ -16,7 +16,10 @@ from typing import Optional, List
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import create_engine, Column, String, Float, Integer, DateTime, Text, Boolean
-from sqlalchemy.ext.declarative import declarative_base
+try:
+    from sqlalchemy.orm import declarative_base
+except ImportError:
+    from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
 
@@ -66,6 +69,35 @@ class ViewerRecord(Base):
 
 
 Base.metadata.create_all(bind=engine)
+
+# Migration — add missing columns if they don't exist
+def run_migrations():
+    try:
+        with engine.connect() as conn:
+            # Add columns that may be missing from older table
+            migrations = [
+                "ALTER TABLE stream_sessions ADD COLUMN IF NOT EXISTS duration_seconds INTEGER DEFAULT 0",
+                "ALTER TABLE stream_sessions ADD COLUMN IF NOT EXISTS platforms VARCHAR DEFAULT 'YouTube'",
+                "ALTER TABLE stream_sessions ADD COLUMN IF NOT EXISTS comments_processed INTEGER DEFAULT 0",
+                "ALTER TABLE stream_sessions ADD COLUMN IF NOT EXISTS responses_spoken INTEGER DEFAULT 0",
+                "ALTER TABLE stream_sessions ADD COLUMN IF NOT EXISTS unique_viewers INTEGER DEFAULT 0",
+                "ALTER TABLE stream_sessions ADD COLUMN IF NOT EXISTS gifts_total FLOAT DEFAULT 0.0",
+                "ALTER TABLE stream_sessions ADD COLUMN IF NOT EXISTS top_comment TEXT",
+                "ALTER TABLE stream_sessions ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()",
+                "ALTER TABLE stream_sessions ADD COLUMN IF NOT EXISTS started_at TIMESTAMP",
+                "ALTER TABLE stream_sessions ADD COLUMN IF NOT EXISTS ended_at TIMESTAMP",
+            ]
+            for sql in migrations:
+                try:
+                    conn.execute(text(sql))
+                    conn.commit()
+                except Exception as e:
+                    pass  # Column already exists
+    except Exception as e:
+        print(f"[Analytics] Migration note: {e}")
+
+from sqlalchemy import text
+run_migrations()
 
 
 class SessionRequest(BaseModel):

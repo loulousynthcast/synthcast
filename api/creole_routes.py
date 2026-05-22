@@ -123,13 +123,15 @@ async def submit_recording(req: RecordingSubmission, request: Request):
         )
         db.add(recording)
         db.commit()
+        db.refresh(recording)
+        recording_id = recording.id
 
         total = db.query(CreoleRecording).count()
         contributors = db.query(CreoleRecording.ip_hash).distinct().count()
 
     return {
         "status": "received",
-        "recording_id": recording.id,
+        "recording_id": recording_id,
         "total_recordings": total,
         "total_contributors": contributors,
         "message": "Mèsi! Anrejistreman ou a resevwa.",
