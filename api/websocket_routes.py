@@ -179,6 +179,171 @@ async def auto_talk_loop(creator_id: str):
             last_activity[creator_id] = time.time()
 
 
+async def youtube_listener_task(creator_id: str, api_key: str, video_id: str):
+    """Listen to YouTube chat for a specific creator."""
+    print(f"[WS/YT] Starting listener for {creator_id}: {video_id}")
+    session = active_sessions.get(creator_id, {})
+    system_prompt = session.get("system_prompt", "You are an AI streaming avatar.")
+
+    try:
+        # Get live chat ID
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                "https://www.googleapis.com/youtube/v3/videos",
+                params={"part": "liveStreamingDetails", "id": video_id, "key": api_key}
+            )
+            data = resp.json()
+            items = data.get("items", [])
+            if not items:
+                print(f"[WS/YT] Video {video_id} not found")
+                return
+            chat_id = items[0].get("liveStreamingDetails", {}).get("activeLiveChatId")
+            if not chat_id:
+                print(f"[WS/YT] No active chat for {video_id}")
+                return
+
+        print(f"[WS/YT] Connected to chat: {chat_id}")
+        seen_ids = set()
+        page_token = None
+
+        while creator_id in active_sessions and creator_id in connected:
+            async with httpx.AsyncClient() as client:
+                params = {
+                    "liveChatId": chat_id,
+                    "part": "snippet,authorDetails",
+                    "key": api_key,
+                    "maxResults": 200,
+                }
+                if page_token:
+                    params["pageToken"] = page_token
+                resp = await client.get(
+                    "https://www.googleapis.com/youtube/v3/liveChat/messages",
+                    params=params
+                )
+                data = resp.json()
+                items = data.get("items", [])
+                page_token = data.get("nextPageToken")
+                poll_ms = data.get("pollingIntervalMillis", 5000)
+
+                for item in items:
+                    msg_id = item["id"]
+                    if msg_id in seen_ids:
+                        continue
+                    seen_ids.add(msg_id)
+
+                    username = item.get("authorDetails", {}).get("displayName", "viewer")
+                    text = item.get("snippet", {}).get("displayMessage", "")
+                    if not text:
+                        continue
+
+                    print(f"[WS/YT] @{username}: {text}")
+                    last_activity[creator_id] = time.time()
+
+                    response = await generate_response(text, username, system_prompt)
+                    voice_id = active_sessions.get(creator_id, {}).get("voice_id")
+                    audio = await generate_tts(response, voice_id)
+                    await send_audio_to_browser(creator_id, response, audio)
+
+                    ws = connected.get(creator_id)
+                    if ws:
+                        await ws.send_json({
+                            "type": "comment",
+                            "username": username,
+                            "text": text,
+                            "response": response,
+                            "platform": "YouTube",
+                            "timestamp": time.time(),
+                        })
+
+            await asyncio.sleep(poll_ms / 1000)
+
+    except Exception as e:
+        print(f"[WS/YT] Error: {e}")
+
+
+async def twitch_listener_task(creator_id: str, channel: str, token: str):
+    """Listen to Twitch chat for a specific creator."""
+    import socket as sock_module
+    print(f"[WS/Twitch] Starting listener for {creator_id}: #{channel}")
+    session = active_sessions.get(creator_id, {})
+    system_prompt = session.get("system_prompt", "You are an AI streaming avatar.")
+    last_resp = time.time()
+    cooldown = 8
+
+    try:
+        s = sock_module.socket(sock_module.AF_INET, sock_module.SOCK_STREAM)
+        s.connect(("irc.chat.twitch.tv", 6667))
+        s.setblocking(False)
+
+        def irc_send(msg):
+            s.send(f"{msg}
+".encode("utf-8"))
+
+        irc_send(f"PASS {token}")
+        irc_send(f"NICK {channel}")
+        irc_send(f"JOIN #{channel}")
+        print(f"[WS/Twitch] Connected to #{channel}")
+
+        while creator_id in active_sessions and creator_id in connected:
+            try:
+                data = s.recv(4096).decode("utf-8", errors="ignore")
+                for raw in data.strip().split("
+"):
+                    if raw.startswith("PING"):
+                        irc_send(f"PONG :{raw.split(':',1)[1] if ':' in raw else 'tmi.twitch.tv'}")
+                        continue
+                    if "PRIVMSG" not in raw:
+                        continue
+                    try:
+                        username = raw.split("!")[0].lstrip(":").lower()
+                        text = raw.split("PRIVMSG", 1)[1].split(":", 1)[1].strip()
+                    except:
+                        continue
+
+                    if not text:
+                        continue
+
+                    print(f"[WS/Twitch] @{username}: {text}")
+                    last_activity[creator_id] = time.time()
+
+                    if time.time() - last_resp < cooldown:
+                        continue
+
+                    response = await generate_response(text, username, system_prompt)
+                    last_resp = time.time()
+                    voice_id = active_sessions.get(creator_id, {}).get("voice_id")
+                    audio = await generate_tts(response, voice_id)
+                    await send_audio_to_browser(creator_id, response, audio)
+
+                    try:
+                        irc_send(f"PRIVMSG #{channel} :@{username} {response}")
+                    except:
+                        pass
+
+                    ws = connected.get(creator_id)
+                    if ws:
+                        await ws.send_json({
+                            "type": "comment",
+                            "username": username,
+                            "text": text,
+                            "response": response,
+                            "platform": "Twitch",
+                            "timestamp": time.time(),
+                        })
+
+            except BlockingIOError:
+                pass
+            except Exception as e:
+                print(f"[WS/Twitch] Error: {e}")
+
+            await asyncio.sleep(0.1)
+
+        s.close()
+
+    except Exception as e:
+        print(f"[WS/Twitch] Connection error: {e}")
+
+
 @router.websocket("/ws/{creator_id}")
 async def websocket_endpoint(websocket: WebSocket, creator_id: str):
     """Main WebSocket connection for a creator's browser."""
@@ -201,11 +366,37 @@ async def websocket_endpoint(websocket: WebSocket, creator_id: str):
             msg_type = data.get("type")
 
             if msg_type == "start_stream":
-                # Creator clicked Go Live
+                # Load creator's stored credentials from database
+                voice_id = data.get("voice_id", "")
+                el_key = ""
+                yt_api_key = ""
+                yt_video_id = ""
+                twitch_channel = ""
+                twitch_token = ""
+
+                try:
+                    from billing.db_auth_store import get_user_by_id
+                    from billing.db_account_store import PostgresAccountStore
+                    user = get_user_by_id(creator_id)
+                    if user:
+                        voice_id = voice_id or user.get("elevenlabs_voice_id", "")
+                        el_key = user.get("elevenlabs_api_key", "")
+                        yt_api_key = user.get("youtube_api_key", "")
+                        yt_video_id = user.get("youtube_video_id", data.get("youtube_video_id", ""))
+                        twitch_channel = user.get("twitch_channel", "")
+                        twitch_token = user.get("twitch_token", "")
+                except Exception as e:
+                    print(f"[WS] Could not load creator credentials: {e}")
+
                 session_config = {
                     "platform": data.get("platform", "YouTube"),
-                    "system_prompt": data.get("system_prompt", "You are an AI streaming avatar."),
-                    "voice_id": data.get("voice_id", ""),
+                    "system_prompt": data.get("system_prompt", f"You are an AI streaming avatar. Be warm, engaging, and natural."),
+                    "voice_id": voice_id,
+                    "el_key": el_key,
+                    "yt_api_key": yt_api_key,
+                    "yt_video_id": yt_video_id,
+                    "twitch_channel": twitch_channel,
+                    "twitch_token": twitch_token,
                     "auto_talk_interval": data.get("auto_talk_interval", 45),
                     "auto_talk_prompts": data.get("auto_talk_prompts", AUTO_TALK_PROMPTS),
                     "started_at": time.time(),
@@ -213,14 +404,23 @@ async def websocket_endpoint(websocket: WebSocket, creator_id: str):
                 active_sessions[creator_id] = session_config
                 last_activity[creator_id] = time.time()
 
-                # Start auto-talk background task
                 asyncio.create_task(auto_talk_loop(creator_id))
+
+                # Start platform listeners if credentials available
+                if yt_api_key and yt_video_id:
+                    asyncio.create_task(youtube_listener_task(creator_id, yt_api_key, yt_video_id))
+                if twitch_channel and twitch_token:
+                    asyncio.create_task(twitch_listener_task(creator_id, twitch_channel, twitch_token))
 
                 await websocket.send_json({
                     "type": "stream_started",
-                    "message": "Stream started. Auto-talk active.",
+                    "platforms": {
+                        "youtube": bool(yt_api_key and yt_video_id),
+                        "twitch": bool(twitch_channel and twitch_token),
+                    },
+                    "message": "Stream started. Platform listeners active.",
                 })
-                print(f"[WS] Stream started: {creator_id}")
+                print(f"[WS] Stream started: {creator_id} — YT:{bool(yt_api_key)} Twitch:{bool(twitch_channel)}")
 
             elif msg_type == "stop_stream":
                 # Creator clicked End Session

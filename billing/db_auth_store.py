@@ -47,9 +47,34 @@ class AuthUser(Base):
     openai_api_key      = Column(String, nullable=True)
     heygen_api_key      = Column(String, nullable=True)
     heygen_avatar_id    = Column(String, nullable=True)
+    youtube_api_key     = Column(String, nullable=True)
+    youtube_video_id    = Column(String, nullable=True)
+    twitch_channel      = Column(String, nullable=True)
+    twitch_token        = Column(String, nullable=True)
+    tiktok_handle       = Column(String, nullable=True)
 
 
 Base.metadata.create_all(bind=engine)
+
+# Migration — add platform columns if missing
+try:
+    from sqlalchemy import text as sql_text
+    with engine.connect() as conn:
+        for col in [
+            "ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS youtube_api_key VARCHAR",
+            "ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS youtube_video_id VARCHAR",
+            "ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS twitch_channel VARCHAR",
+            "ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS twitch_token VARCHAR",
+            "ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS tiktok_handle VARCHAR",
+        ]:
+            try:
+                conn.execute(sql_text(col))
+                conn.commit()
+            except:
+                pass
+except Exception as e:
+    print(f"[AuthDB] Migration note: {e}")
+
 print("[AuthDB] PostgreSQL auth store initialized")
 
 
@@ -71,6 +96,11 @@ def _row_to_dict(user: AuthUser) -> dict:
         "openai_api_key":      user.openai_api_key,
         "heygen_api_key":      user.heygen_api_key,
         "heygen_avatar_id":    user.heygen_avatar_id,
+        "youtube_api_key":     user.youtube_api_key,
+        "youtube_video_id":    user.youtube_video_id,
+        "twitch_channel":      user.twitch_channel,
+        "twitch_token":        user.twitch_token,
+        "tiktok_handle":       user.tiktok_handle,
     }
 
 

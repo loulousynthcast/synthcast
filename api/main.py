@@ -598,6 +598,49 @@ async def get_creator_profile(username: str):
         "tier": user.get("tier", "free"),
     }
 
+# ── CREATOR PLATFORM SETTINGS ─────────────────────────────────────────────────
+
+class PlatformSettings(BaseModel):
+    creator_id: str
+    youtube_api_key: Optional[str] = None
+    youtube_video_id: Optional[str] = None
+    twitch_channel: Optional[str] = None
+    twitch_token: Optional[str] = None
+    tiktok_handle: Optional[str] = None
+
+@app.post("/creator/platforms", tags=["creators"])
+async def save_platform_settings(req: PlatformSettings):
+    """Save creator platform credentials to their account."""
+    from billing.db_auth_store import update_user
+    updates = {}
+    if req.youtube_api_key: updates["youtube_api_key"] = req.youtube_api_key
+    if req.youtube_video_id: updates["youtube_video_id"] = req.youtube_video_id
+    if req.twitch_channel: updates["twitch_channel"] = req.twitch_channel
+    if req.twitch_token: updates["twitch_token"] = req.twitch_token
+    if req.tiktok_handle: updates["tiktok_handle"] = req.tiktok_handle
+
+    result = update_user(req.creator_id, **updates)
+    if not result:
+        raise HTTPException(404, "Creator not found.")
+    return {"status": "saved"}
+
+
+@app.get("/creator/platforms/{creator_id}", tags=["creators"])
+async def get_platform_settings(creator_id: str):
+    """Get creator platform settings."""
+    from billing.db_auth_store import get_user_by_id
+    user = get_user_by_id(creator_id)
+    if not user:
+        raise HTTPException(404, "Creator not found.")
+    return {
+        "youtube_configured": bool(user.get("youtube_api_key")),
+        "twitch_configured": bool(user.get("twitch_channel") and user.get("twitch_token")),
+        "tiktok_handle": user.get("tiktok_handle", ""),
+        "youtube_video_id": user.get("youtube_video_id", ""),
+        "twitch_channel": user.get("twitch_channel", ""),
+    }
+
+
 # ── ADMIN ENDPOINTS ───────────────────────────────────────────────────────────
 
 @app.get("/admin/creators", tags=["admin"])
