@@ -103,6 +103,8 @@ from api.stream_routes import router as stream_router
 app.include_router(stream_router)
 from api.analytics_routes import router as analytics_router
 app.include_router(analytics_router)
+from api.websocket_routes import router as ws_router
+app.include_router(ws_router)
 
 # ── REQUEST / RESPONSE MODELS ─────────────────────────────────────────────────
 

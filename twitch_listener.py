@@ -29,6 +29,23 @@ API_URL         = os.getenv("API_URL", "https://synthcast-production.up.railway.
 TWITCH_IRC_HOST = "irc.chat.twitch.tv"
 TWITCH_IRC_PORT = 6667
 
+# Auto-talk settings
+AUTO_TALK_INTERVAL = 45  # seconds of silence before AI speaks
+last_activity_time = time.time()
+
+# Auto-talk prompts — AI generates fresh content each time
+AUTO_TALK_PROMPTS = [
+    "You are live streaming and the chat is quiet. Hype up the stream, welcome new viewers, and invite people to drop a comment. Keep it under 30 words. Sound natural and energetic.",
+    "You are live streaming. Share something interesting about what you create or your journey. Invite viewers to follow. Under 30 words.",
+    "You are live streaming and want to engage your audience. Ask them a question about themselves or their day. Under 25 words.",
+    "You are live streaming. Give a shoutout to anyone watching and tell them to drop their location in chat. Under 30 words.",
+    "You are live streaming. Talk about Synthcast — the AI streaming platform you use — and invite viewers to check it out at synthcast.live. Under 30 words.",
+    "You are live streaming. Hype up the stream energy, tell viewers to share the stream with a friend, and drop a follow if they haven't. Under 30 words.",
+    "You are live streaming and chat is quiet. Tell viewers something real about your creative process or what you are working on right now. Under 30 words.",
+]
+
+auto_talk_index = 0
+
 from language_detector import generate_multilingual_response, get_language_name
 
 SYSTEM_PROMPT = f"""You are {AVATAR_NAME}, the AI avatar of {CREATOR_NAME}.
@@ -130,40 +147,56 @@ async def generate_response(comment: str, username: str) -> str:
         return f"Thanks {username}!"
 
 
+async def play_audio(audio_path: str):
+    """Play audio through default output (VB-Cable → OBS)."""
+    if os.name == 'nt':
+        import pygame
+        pygame.mixer.init()
+        pygame.mixer.music.load(audio_path)
+        pygame.mixer.music.play()
+        while pygame.mixer.music.get_busy():
+            pygame.time.wait(100)
+        pygame.mixer.quit()
+    else:
+        os.system(f"ffplay -nodisp -autoexit '{audio_path}' 2>/dev/null")
+
+
 async def speak_response(text: str):
-    """Speak response via ElevenLabs through VB-Cable."""
-    if not ELEVENLABS_KEY or not ELEVENLABS_VOICE:
-        print(f"[TTS] Would speak: {text}")
-        return
+    """Speak response — ElevenLabs primary, Edge TTS fallback."""
+    import tempfile
+    audio_path = os.path.join(tempfile.gettempdir(), "synthcast_twitch.mp3")
+
+    if ELEVENLABS_KEY and ELEVENLABS_VOICE:
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                resp = await client.post(
+                    f"https://api.elevenlabs.io/v1/text-to-speech/{ELEVENLABS_VOICE}",
+                    headers={"xi-api-key": ELEVENLABS_KEY},
+                    json={
+                        "text": text,
+                        "model_id": "eleven_multilingual_v2",
+                        "voice_settings": {"stability": 0.5, "similarity_boost": 0.8}
+                    }
+                )
+                if resp.status_code == 200:
+                    with open(audio_path, "wb") as f:
+                        f.write(resp.content)
+                    await play_audio(audio_path)
+                    return
+                else:
+                    print(f"[TTS] ElevenLabs error {resp.status_code} — falling back to Edge TTS")
+        except Exception as e:
+            print(f"[TTS] ElevenLabs failed: {e} — falling back to Edge TTS")
 
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            resp = await client.post(
-                f"https://api.elevenlabs.io/v1/text-to-speech/{ELEVENLABS_VOICE}",
-                headers={"xi-api-key": ELEVENLABS_KEY},
-                json={
-                    "text": text,
-                    "model_id": "eleven_multilingual_v2",
-                    "voice_settings": {"stability": 0.5, "similarity_boost": 0.8}
-                }
-            )
-            if resp.status_code == 200:
-                import tempfile
-                audio_path = os.path.join(tempfile.gettempdir(), "synthcast_twitch.mp3")
-                with open(audio_path, "wb") as f:
-                    f.write(resp.content)
-                if os.name == 'nt':
-                    import pygame
-                    pygame.mixer.init()
-                    pygame.mixer.music.load(audio_path)
-                    pygame.mixer.music.play()
-                    while pygame.mixer.music.get_busy():
-                        pygame.time.wait(100)
-                    pygame.mixer.quit()
-                else:
-                    os.system(f"ffplay -nodisp -autoexit '{audio_path}' 2>/dev/null")
+        import edge_tts
+        voice = "en-US-GuyNeural"
+        communicate = edge_tts.Communicate(text, voice)
+        await communicate.save(audio_path)
+        print(f"[TTS/Edge] Speaking: {text[:50]}...")
+        await play_audio(audio_path)
     except Exception as e:
-        print(f"[TTS] Error: {e}")
+        print(f"[TTS] Edge TTS failed: {e}")
 
 
 async def push_to_dashboard(username: str, text: str, comment_type: str,
@@ -184,6 +217,51 @@ async def push_to_dashboard(username: str, text: str, comment_type: str,
             )
     except Exception as e:
         print(f"[Dashboard] Push failed: {e}")
+
+
+async def generate_auto_talk(system_prompt: str) -> str:
+    """Generate an unprompted statement for when chat is quiet."""
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
+                json={
+                    "model": "gpt-4o-mini",
+                    "messages": [
+                        {"role": "system", "content": f"You are {AVATAR_NAME}, the AI avatar of {CREATOR_NAME}. {system_prompt}"},
+                        {"role": "user", "content": "Say something now."}
+                    ],
+                    "max_tokens": 60,
+                    "temperature": 0.9,
+                }
+            )
+            data = resp.json()
+            return data["choices"][0]["message"]["content"].strip()
+    except Exception as e:
+        print(f"[AutoTalk] Error: {e}")
+        return f"Yo chat! {CREATOR_NAME} here — drop a comment and let me know you're watching!"
+
+
+async def auto_talk_loop(irc):
+    """Runs in background — speaks when chat is quiet."""
+    global last_activity_time, auto_talk_index
+    while True:
+        await asyncio.sleep(5)
+        silence = time.time() - last_activity_time
+        if silence >= AUTO_TALK_INTERVAL:
+            prompt = AUTO_TALK_PROMPTS[auto_talk_index % len(AUTO_TALK_PROMPTS)]
+            auto_talk_index += 1
+            print(f"[AutoTalk] Chat quiet for {int(silence)}s — generating content...")
+            text = await generate_auto_talk(prompt)
+            print(f"[AutoTalk] {text}")
+            # Post to chat and speak
+            try:
+                irc.send_chat(text)
+            except:
+                pass
+            await speak_response(text)
+            last_activity_time = time.time()  # Reset timer
 
 
 async def main():
@@ -214,6 +292,10 @@ async def main():
         return
 
     print(f"[Synthcast] Listening to #{TWITCH_CHANNEL} chat...")
+    print(f"[AutoTalk] Will speak every {AUTO_TALK_INTERVAL}s when chat is quiet")
+
+    # Start auto-talk in background
+    asyncio.create_task(auto_talk_loop(irc))
 
     while True:
         try:
@@ -238,6 +320,7 @@ async def main():
 
                 comment_type = classify_comment(text, username)
                 print(f"[{comment_type}] @{username}: {text}")
+                last_activity_time = time.time()  # Reset auto-talk timer
 
                 # Cooldown check
                 now = time.time()
