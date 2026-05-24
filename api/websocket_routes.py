@@ -276,8 +276,7 @@ async def twitch_listener_task(creator_id: str, channel: str, token: str):
         s.setblocking(False)
 
         def irc_send(msg):
-            s.send(f"{msg}
-".encode("utf-8"))
+            s.send(f"{msg}\r\n".encode("utf-8"))
 
         irc_send(f"PASS {token}")
         irc_send(f"NICK {channel}")
@@ -287,8 +286,7 @@ async def twitch_listener_task(creator_id: str, channel: str, token: str):
         while creator_id in active_sessions and creator_id in connected:
             try:
                 data = s.recv(4096).decode("utf-8", errors="ignore")
-                for raw in data.strip().split("
-"):
+                for raw in data.strip().split("\r\n"):
                     if raw.startswith("PING"):
                         irc_send(f"PONG :{raw.split(':',1)[1] if ':' in raw else 'tmi.twitch.tv'}")
                         continue
