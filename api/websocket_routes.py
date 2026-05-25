@@ -179,8 +179,70 @@ async def auto_talk_loop(creator_id: str):
             last_activity[creator_id] = time.time()
 
 
+async def find_active_youtube_stream(api_key: str, channel_id: str = None) -> str:
+    """Auto-detect the creator's currently live YouTube stream.
+    
+    Tries multiple methods:
+    1. If channel_id provided, search that channel's live streams
+    2. Otherwise, the creator must provide video_id
+    
+    Returns video_id of active live stream or empty string.
+    """
+    try:
+        async with httpx.AsyncClient() as client:
+            # If we have a channel_id, search for active live streams
+            if channel_id:
+                resp = await client.get(
+                    "https://www.googleapis.com/youtube/v3/search",
+                    params={
+                        "part": "id",
+                        "channelId": channel_id,
+                        "eventType": "live",
+                        "type": "video",
+                        "key": api_key,
+                    }
+                )
+                data = resp.json()
+                items = data.get("items", [])
+                if items:
+                    return items[0]["id"]["videoId"]
+    except Exception as e:
+        print(f"[WS/YT] Auto-detect failed: {e}")
+    return ""
+
+
 async def youtube_listener_task(creator_id: str, api_key: str, video_id: str):
     """Listen to YouTube chat for a specific creator."""
+    # Auto-detect if no video_id provided
+    if not video_id:
+        # Try to find the creator's active live stream
+        # First, get their channel ID from the API key's account
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(
+                    "https://www.googleapis.com/youtube/v3/channels",
+                    params={"part": "id", "mine": "true", "key": api_key}
+                )
+                data = resp.json()
+                items = data.get("items", [])
+                if items:
+                    channel_id = items[0]["id"]
+                    video_id = await find_active_youtube_stream(api_key, channel_id)
+                    if video_id:
+                        print(f"[WS/YT] Auto-detected live stream: {video_id}")
+        except:
+            pass
+        
+        if not video_id:
+            print(f"[WS/YT] No active live stream found for {creator_id}")
+            ws = connected.get(creator_id)
+            if ws:
+                await ws.send_json({
+                    "type": "notice",
+                    "message": "No active YouTube live stream detected. Start your stream first.",
+                })
+            return
+    
     print(f"[WS/YT] Starting listener for {creator_id}: {video_id}")
     session = active_sessions.get(creator_id, {})
     system_prompt = session.get("system_prompt", "You are an AI streaming avatar.")
