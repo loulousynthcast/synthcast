@@ -625,6 +625,31 @@ async def save_platform_settings(req: PlatformSettings):
     return {"status": "saved"}
 
 
+@app.post("/creator/api-keys", tags=["creators"])
+async def save_creator_api_keys(req: dict):
+    """Save creator API keys to PostgreSQL (replaces broken billing endpoint)."""
+    from billing.db_auth_store import update_user
+    creator_id = req.get("creator_id")
+    if not creator_id:
+        raise HTTPException(400, "creator_id required")
+    
+    updates = {}
+    if req.get("elevenlabs_api_key"): updates["elevenlabs_api_key"] = req["elevenlabs_api_key"]
+    if req.get("elevenlabs_voice_id"): updates["elevenlabs_voice_id"] = req["elevenlabs_voice_id"]
+    if req.get("openai_api_key"): updates["openai_api_key"] = req["openai_api_key"]
+    if req.get("heygen_api_key"): updates["heygen_api_key"] = req["heygen_api_key"]
+    if req.get("heygen_avatar_id"): updates["heygen_avatar_id"] = req["heygen_avatar_id"]
+    
+    if not updates:
+        return {"status": "no_changes"}
+    
+    result = update_user(creator_id, **updates)
+    if not result:
+        raise HTTPException(404, f"Creator '{creator_id}' not found in database.")
+    
+    return {"status": "saved", "updated": list(updates.keys())}
+
+
 @app.get("/creator/platforms/{creator_id}", tags=["creators"])
 async def get_platform_settings(creator_id: str):
     """Get creator platform settings."""
