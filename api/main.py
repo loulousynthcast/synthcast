@@ -625,6 +625,29 @@ async def save_platform_settings(req: PlatformSettings):
     return {"status": "saved"}
 
 
+@app.get("/creator/setup-status/{creator_id}", tags=["creators"])
+async def get_setup_status(creator_id: str):
+    """Get creator setup status from PostgreSQL."""
+    from billing.db_auth_store import get_user_by_id
+    user = get_user_by_id(creator_id)
+    if not user:
+        raise HTTPException(404, "Creator not found.")
+    
+    missing = []
+    if not user.get("elevenlabs_api_key"): missing.append("elevenlabs_api_key")
+    if not user.get("elevenlabs_voice_id"): missing.append("elevenlabs_voice_id")
+    if not user.get("openai_api_key"): missing.append("openai_api_key")
+    
+    return {
+        "tier": user.get("tier", "free"),
+        "missing_keys": missing,
+        "ready_to_go_live": len(missing) == 0,
+        "voice_configured": bool(user.get("elevenlabs_voice_id")),
+        "avatar_configured": bool(user.get("heygen_avatar_id")),
+        "platforms_configured": bool(user.get("twitch_token") or user.get("youtube_api_key")),
+    }
+
+
 @app.post("/creator/api-keys", tags=["creators"])
 async def save_creator_api_keys(req: dict):
     """Save creator API keys to PostgreSQL (replaces broken billing endpoint)."""
