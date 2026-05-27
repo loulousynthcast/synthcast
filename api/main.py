@@ -612,12 +612,14 @@ class PlatformSettings(BaseModel):
 async def save_platform_settings(req: PlatformSettings):
     """Save creator platform credentials to their account."""
     from billing.db_auth_store import update_user
+    def clean(v):
+        return v.strip() if isinstance(v, str) else v
     updates = {}
-    if req.youtube_api_key: updates["youtube_api_key"] = req.youtube_api_key
-    if req.youtube_video_id: updates["youtube_video_id"] = req.youtube_video_id
-    if req.twitch_channel: updates["twitch_channel"] = req.twitch_channel
-    if req.twitch_token: updates["twitch_token"] = req.twitch_token
-    if req.tiktok_handle: updates["tiktok_handle"] = req.tiktok_handle
+    if req.youtube_api_key: updates["youtube_api_key"] = clean(req.youtube_api_key)
+    if req.youtube_video_id: updates["youtube_video_id"] = clean(req.youtube_video_id)
+    if req.twitch_channel: updates["twitch_channel"] = clean(req.twitch_channel)
+    if req.twitch_token: updates["twitch_token"] = clean(req.twitch_token)
+    if req.tiktok_handle: updates["tiktok_handle"] = clean(req.tiktok_handle)
 
     result = update_user(req.creator_id, **updates)
     if not result:
@@ -656,12 +658,14 @@ async def save_creator_api_keys(req: dict):
     if not creator_id:
         raise HTTPException(400, "creator_id required")
     
+    def clean(v):
+        return v.strip() if isinstance(v, str) else v
     updates = {}
-    if req.get("elevenlabs_api_key"): updates["elevenlabs_api_key"] = req["elevenlabs_api_key"]
-    if req.get("elevenlabs_voice_id"): updates["elevenlabs_voice_id"] = req["elevenlabs_voice_id"]
-    if req.get("openai_api_key"): updates["openai_api_key"] = req["openai_api_key"]
-    if req.get("heygen_api_key"): updates["heygen_api_key"] = req["heygen_api_key"]
-    if req.get("heygen_avatar_id"): updates["heygen_avatar_id"] = req["heygen_avatar_id"]
+    if req.get("elevenlabs_api_key"): updates["elevenlabs_api_key"] = clean(req["elevenlabs_api_key"])
+    if req.get("elevenlabs_voice_id"): updates["elevenlabs_voice_id"] = clean(req["elevenlabs_voice_id"])
+    if req.get("openai_api_key"): updates["openai_api_key"] = clean(req["openai_api_key"])
+    if req.get("heygen_api_key"): updates["heygen_api_key"] = clean(req["heygen_api_key"])
+    if req.get("heygen_avatar_id"): updates["heygen_avatar_id"] = clean(req["heygen_avatar_id"])
     
     if not updates:
         return {"status": "no_changes"}

@@ -60,7 +60,7 @@ async def generate_response(comment: str, username: str, system_prompt: str) -> 
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.post(
                 "https://api.openai.com/v1/chat/completions",
-                headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
+                headers={"Authorization": f"Bearer {OPENAI_API_KEY.strip()}"},
                 json={
                     "model": "gpt-4o-mini",
                     "messages": [
@@ -157,7 +157,7 @@ async def auto_talk_loop(creator_id: str):
                 async with httpx.AsyncClient(timeout=10.0) as client:
                     resp = await client.post(
                         "https://api.openai.com/v1/chat/completions",
-                        headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
+                        headers={"Authorization": f"Bearer {OPENAI_API_KEY.strip()}"},
                         json={
                             "model": "gpt-4o-mini",
                             "messages": [
