@@ -83,6 +83,7 @@ def run_migrations():
                 "ALTER TABLE stream_sessions ADD COLUMN IF NOT EXISTS unique_viewers INTEGER DEFAULT 0",
                 "ALTER TABLE stream_sessions ADD COLUMN IF NOT EXISTS gifts_total FLOAT DEFAULT 0.0",
                 "ALTER TABLE stream_sessions ADD COLUMN IF NOT EXISTS top_comment TEXT",
+                "ALTER TABLE stream_sessions ALTER COLUMN platform DROP NOT NULL",
                 "ALTER TABLE stream_sessions ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()",
                 "ALTER TABLE stream_sessions ADD COLUMN IF NOT EXISTS started_at TIMESTAMP",
                 "ALTER TABLE stream_sessions ADD COLUMN IF NOT EXISTS ended_at TIMESTAMP",
