@@ -436,7 +436,6 @@ async def websocket_endpoint(websocket: WebSocket, creator_id: str):
 
                 try:
                     from billing.db_auth_store import get_user_by_id
-                    from billing.db_account_store import PostgresAccountStore
                     user = get_user_by_id(creator_id)
                     if user:
                         voice_id = voice_id or user.get("elevenlabs_voice_id", "")
