@@ -41,6 +41,38 @@ active_sessions: Dict[str, dict] = {}
 # Auto-talk timers: creator_id -> last activity time
 last_activity: Dict[str, float] = {}
 
+# Track first-time commenters per creator
+seen_users: Dict[str, set] = {}
+
+def strip_emojis(text: str) -> str:
+    """Remove emojis from text so AI doesn't read them out."""
+    import re
+    # Remove emoji characters and emoticon ranges
+    emoji_pattern = re.compile(
+        "["
+        "\U0001F600-\U0001F64F"  # emoticons
+        "\U0001F300-\U0001F5FF"  # symbols & pictographs
+        "\U0001F680-\U0001F6FF"  # transport & map symbols
+        "\U0001F1E0-\U0001F1FF"  # flags
+        "\U00002500-\U00002BEF"  # chinese chars
+        "\U00002702-\U000027B0"
+        "\U000024C2-\U0001F251"
+        "\U0001f926-\U0001f937"
+        "\U00010000-\U0010ffff"
+        "\u2640-\u2642"
+        "\u2600-\u2B55"
+        "\u200d"
+        "\u23cf"
+        "\u23e9"
+        "\u231a"
+        "\ufe0f"  # dingbats
+        "\u3030"
+        "]+", flags=re.UNICODE)
+    cleaned = emoji_pattern.sub('', text).strip()
+    # If only emojis, return empty
+    return cleaned if cleaned else ""
+
+
 AUTO_TALK_PROMPTS = [
     "Chat is quiet. Hype up the stream and welcome new viewers. Under 25 words.",
     "Invite viewers to drop a comment and share where they're from. Under 25 words.",
@@ -298,10 +330,24 @@ async def youtube_listener_task(creator_id: str, api_key: str, video_id: str):
                     if not text:
                         continue
 
-                    print(f"[WS/YT] @{username}: {text}")
+                    clean_text = strip_emojis(text)
+                    if not clean_text:
+                        continue
+
+                    print(f"[WS/YT] @{username}: {clean_text}")
                     last_activity[creator_id] = time.time()
 
-                    response = await generate_response(text, username, system_prompt)
+                    if creator_id not in seen_users:
+                        seen_users[creator_id] = set()
+                    is_new_viewer = username not in seen_users[creator_id]
+                    seen_users[creator_id].add(username)
+
+                    if is_new_viewer:
+                        full_prompt = f"{system_prompt}\n\nThis is the FIRST time @{username} is commenting. Welcome them warmly."
+                    else:
+                        full_prompt = system_prompt
+
+                    response = await generate_response(clean_text, username, full_prompt)
                     voice_id = active_sessions.get(creator_id, {}).get("voice_id")
                     audio = await generate_tts(response, voice_id)
                     await send_audio_to_browser(creator_id, response, audio)
@@ -363,13 +409,30 @@ async def twitch_listener_task(creator_id: str, channel: str, token: str):
                     if not text:
                         continue
 
-                    print(f"[WS/Twitch] @{username}: {text}")
+                    # Strip emojis from comment text
+                    clean_text = strip_emojis(text)
+                    if not clean_text:
+                        continue  # Skip emoji-only comments
+
+                    print(f"[WS/Twitch] @{username}: {clean_text}")
                     last_activity[creator_id] = time.time()
 
                     if time.time() - last_resp < cooldown:
                         continue
 
-                    response = await generate_response(text, username, system_prompt)
+                    # Check if this is a first-time commenter
+                    if creator_id not in seen_users:
+                        seen_users[creator_id] = set()
+                    is_new_viewer = username not in seen_users[creator_id]
+                    seen_users[creator_id].add(username)
+
+                    # Build prompt with new viewer flag
+                    if is_new_viewer:
+                        full_prompt = f"{system_prompt}\n\nThis is the FIRST time @{username} is commenting. Welcome them warmly and respond to their message."
+                    else:
+                        full_prompt = system_prompt
+
+                    response = await generate_response(clean_text, username, full_prompt)
                     last_resp = time.time()
                     voice_id = active_sessions.get(creator_id, {}).get("voice_id")
                     audio = await generate_tts(response, voice_id)
