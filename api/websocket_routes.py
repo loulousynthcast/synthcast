@@ -216,6 +216,11 @@ async def auto_talk_loop(creator_id: str):
 
     while creator_id in active_sessions and creator_id in connected:
         await asyncio.sleep(5)
+        
+        # Skip if AI is currently speaking (real comment response)
+        if is_speaking.get(creator_id, False):
+            continue
+        
         silence = time.time() - last_activity.get(creator_id, time.time())
 
         if silence >= interval:
@@ -245,10 +250,11 @@ async def auto_talk_loop(creator_id: str):
                 text = "Yo chat! Drop a comment and let me know you're watching!"
 
             print(f"[AutoTalk/{creator_id}] {text}")
+            last_activity[creator_id] = time.time()  # Reset timer BEFORE speaking
             voice_id = session.get("voice_id")
             audio = await generate_tts(text, voice_id)
             await send_audio_to_browser(creator_id, text, audio, "AUTO")
-            last_activity[creator_id] = time.time()
+            last_activity[creator_id] = time.time()  # Reset again after speaking
 
 
 async def find_active_youtube_stream(api_key: str, channel_id: str = None) -> str:
