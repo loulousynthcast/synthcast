@@ -44,6 +44,13 @@ last_activity: Dict[str, float] = {}
 # Track first-time commenters per creator
 seen_users: Dict[str, set] = {}
 
+# Track if AI is currently speaking (to queue/skip)
+is_speaking: Dict[str, bool] = {}
+
+# Conversation history per creator (last N exchanges)
+conversation_history: Dict[str, list] = {}
+MAX_HISTORY = 6  # Keep last 6 exchanges
+
 def strip_emojis(text: str) -> str:
     """Remove emojis from text so AI doesn't read them out."""
     import re
@@ -86,8 +93,17 @@ AUTO_TALK_PROMPTS = [
 prompt_index: Dict[str, int] = {}
 
 
-async def generate_response(comment: str, username: str, system_prompt: str) -> str:
-    """Generate AI response via OpenAI."""
+async def generate_response(comment: str, username: str, system_prompt: str, creator_id: str = None) -> str:
+    """Generate AI response via OpenAI with conversation history."""
+    # Build messages with history
+    messages = [{"role": "system", "content": system_prompt}]
+    
+    if creator_id and creator_id in conversation_history:
+        messages.extend(conversation_history[creator_id])
+    
+    user_msg = f"@{username} says: {comment}"
+    messages.append({"role": "user", "content": user_msg})
+    
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.post(
@@ -95,16 +111,25 @@ async def generate_response(comment: str, username: str, system_prompt: str) -> 
                 headers={"Authorization": f"Bearer {OPENAI_API_KEY.strip()}"},
                 json={
                     "model": "gpt-4o-mini",
-                    "messages": [
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": f"@{username} says: {comment}"}
-                    ],
+                    "messages": messages,
                     "max_tokens": 80,
                     "temperature": 0.8,
                 }
             )
             data = resp.json()
-            return data["choices"][0]["message"]["content"].strip()
+            response = data["choices"][0]["message"]["content"].strip()
+            
+            # Store in history
+            if creator_id:
+                if creator_id not in conversation_history:
+                    conversation_history[creator_id] = []
+                conversation_history[creator_id].append({"role": "user", "content": user_msg})
+                conversation_history[creator_id].append({"role": "assistant", "content": response})
+                # Trim to last MAX_HISTORY exchanges (2 messages per exchange)
+                if len(conversation_history[creator_id]) > MAX_HISTORY * 2:
+                    conversation_history[creator_id] = conversation_history[creator_id][-MAX_HISTORY * 2:]
+            
+            return response
     except Exception as e:
         print(f"[WS] AI error: {e}")
         return f"Thanks {username}!"
@@ -149,22 +174,37 @@ async def generate_tts(text: str, voice_id: str = None) -> bytes:
 
 
 async def send_audio_to_browser(creator_id: str, text: str, audio_bytes: bytes, comment_type: str = "C"):
-    """Send audio to connected browser as base64."""
+    """Send audio to connected browser as base64. Waits if already speaking."""
     ws = connected.get(creator_id)
     if not ws or not audio_bytes:
         return
+    
+    # Wait if AI is already speaking (max 30s)
+    wait_count = 0
+    while is_speaking.get(creator_id, False) and wait_count < 60:
+        await asyncio.sleep(0.5)
+        wait_count += 1
+    
+    is_speaking[creator_id] = True
     try:
         import base64
         audio_b64 = base64.b64encode(audio_bytes).decode()
+        # Estimate audio duration (roughly 15 chars per second for normal speech)
+        estimated_duration = max(2, len(text) / 15)
         await ws.send_json({
             "type": "audio",
             "text": text,
             "audio": audio_b64,
             "comment_type": comment_type,
             "timestamp": time.time(),
+            "estimated_duration": estimated_duration,
         })
+        # Block other audio for the estimated duration
+        await asyncio.sleep(estimated_duration + 0.5)  # +0.5s buffer
     except Exception as e:
         print(f"[WS] Send audio error: {e}")
+    finally:
+        is_speaking[creator_id] = False
 
 
 async def auto_talk_loop(creator_id: str):
@@ -347,7 +387,7 @@ async def youtube_listener_task(creator_id: str, api_key: str, video_id: str):
                     else:
                         full_prompt = system_prompt
 
-                    response = await generate_response(clean_text, username, full_prompt)
+                    response = await generate_response(clean_text, username, full_prompt, creator_id)
                     voice_id = active_sessions.get(creator_id, {}).get("voice_id")
                     audio = await generate_tts(response, voice_id)
                     await send_audio_to_browser(creator_id, response, audio)
@@ -432,7 +472,7 @@ async def twitch_listener_task(creator_id: str, channel: str, token: str):
                     else:
                         full_prompt = system_prompt
 
-                    response = await generate_response(clean_text, username, full_prompt)
+                    response = await generate_response(clean_text, username, full_prompt, creator_id)
                     last_resp = time.time()
                     voice_id = active_sessions.get(creator_id, {}).get("voice_id")
                     audio = await generate_tts(response, voice_id)
@@ -547,6 +587,9 @@ async def websocket_endpoint(websocket: WebSocket, creator_id: str):
             elif msg_type == "stop_stream":
                 # Creator clicked End Session
                 active_sessions.pop(creator_id, None)
+                conversation_history.pop(creator_id, None)
+                seen_users.pop(creator_id, None)
+                is_speaking.pop(creator_id, None)
                 await websocket.send_json({"type": "stream_stopped"})
                 print(f"[WS] Stream stopped: {creator_id}")
 
