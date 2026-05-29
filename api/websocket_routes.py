@@ -139,7 +139,7 @@ async def generate_response(comment: str, username: str, system_prompt: str, cre
         return f"Thanks {username}!"
 
 
-async def generate_tts(text: str, voice_id: str = None) -> bytes:
+async def generate_tts(text: str, voice_id: str = None, comment_lang: str = None) -> bytes:
     """Generate TTS audio via ElevenLabs. Returns audio bytes."""
     el_voice = voice_id or os.getenv("ELEVENLABS_VOICE_ID", "")
     el_key = ELEVENLABS_KEY
@@ -168,17 +168,6 @@ async def generate_tts(text: str, voice_id: str = None) -> bytes:
         import edge_tts
         import tempfile
 
-        def detect_lang(t):
-            t_lower = t.lower()
-            creole_words = {"bonjou","bonswa","mèsi","kijan","mwen","nou","yo","anpil","kreyòl","ayiti"}
-            french_words = {"bonjour","merci","comment","pourquoi","avec","vous","nous","très","bien"}
-            spanish_words = {"hola","gracias","cómo","qué","favor","muy","estás","para","los","las"}
-            words = set(t_lower.split())
-            if words & creole_words: return "ht"
-            if words & french_words: return "fr"
-            if words & spanish_words: return "es"
-            return "en"
-
         voice_map = {
             "en": "en-US-GuyNeural",
             "fr": "fr-FR-HenriNeural",
@@ -186,7 +175,14 @@ async def generate_tts(text: str, voice_id: str = None) -> bytes:
             "ht": "fr-FR-HenriNeural",
             "pt": "pt-BR-AntonioNeural",
         }
-        lang = detect_lang(text)
+        # Use comment language if provided, otherwise detect from response text
+        lang = comment_lang or "en"
+        if lang == "en":
+            # Try to detect from response text as fallback
+            t_lower = text.lower()
+            if any(w in t_lower.split() for w in ["bonjou","mèsi","kijan","nou","anpil"]): lang = "ht"
+            elif any(w in t_lower.split() for w in ["bonjour","merci","très","vous"]): lang = "fr"
+            elif any(w in t_lower.split() for w in ["hola","gracias","muy","para"]): lang = "es"
         voice = voice_map.get(lang, "en-US-GuyNeural")
         print(f"[TTS/Edge] Using voice: {voice} for lang: {lang}")
 
