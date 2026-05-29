@@ -573,9 +573,46 @@ async def websocket_endpoint(websocket: WebSocket, creator_id: str):
                 except Exception as e:
                     print(f"[WS] Could not load creator credentials: {e}")
 
+                # Build rich system prompt from knowledge base
+                system_prompt = data.get("system_prompt", "")
+                try:
+                    from billing.db_auth_store import get_user_by_id
+                    kb_user = get_user_by_id(creator_id)
+                    if kb_user:
+                        creator_name = kb_user.get("name", "Creator")
+                        bio = kb_user.get("creator_bio", "")
+                        niche = kb_user.get("creator_niche", "")
+                        faq = kb_user.get("creator_faq", "")
+                        signature = kb_user.get("signature_phrases", "")
+                        banned = kb_user.get("banned_words", "")
+                        style = kb_user.get("speaking_style", "")
+
+                        system_prompt = f"""You are the AI avatar of {creator_name}. You speak in first person AS {creator_name}.
+Never say you are an AI unless directly asked. If asked, say "I'm {creator_name}'s AI — trained on everything I know."
+Keep all responses under 35 words. Be natural, warm, and direct.
+
+"""
+                        if niche:
+                            system_prompt += f"WHAT YOU DO: {niche}\n\n"
+                        if bio:
+                            system_prompt += f"YOUR STORY: {bio}\n\n"
+                        if faq:
+                            system_prompt += f"COMMON QUESTIONS & YOUR ANSWERS:\n{faq}\n\n"
+                        if signature:
+                            system_prompt += f"YOUR SIGNATURE PHRASES (use naturally): {signature}\n\n"
+                        if banned:
+                            system_prompt += f"WORDS/PHRASES TO NEVER USE: {banned}\n\n"
+                        if style:
+                            system_prompt += f"YOUR SPEAKING STYLE: {style}\n\n"
+
+                        system_prompt += "Always stay in character. Respond to every comment naturally as yourself."
+                except Exception as e:
+                    print(f"[WS] Knowledge base load error: {e}")
+                    system_prompt = system_prompt or f"You are an AI streaming avatar. Be warm, engaging, and natural."
+
                 session_config = {
                     "platform": data.get("platform", "YouTube"),
-                    "system_prompt": data.get("system_prompt", f"You are an AI streaming avatar. Be warm, engaging, and natural."),
+                    "system_prompt": system_prompt,
                     "voice_id": voice_id,
                     "el_key": el_key,
                     "yt_api_key": yt_api_key,

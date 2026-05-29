@@ -696,6 +696,53 @@ async def get_platform_settings(creator_id: str):
     }
 
 
+# ── CREATOR KNOWLEDGE BASE ────────────────────────────────────────────────────
+
+class KnowledgeBase(BaseModel):
+    creator_id: str
+    creator_bio: Optional[str] = None
+    creator_niche: Optional[str] = None
+    creator_faq: Optional[str] = None
+    signature_phrases: Optional[str] = None
+    banned_words: Optional[str] = None
+    speaking_style: Optional[str] = None
+
+@app.post("/creator/knowledge", tags=["creators"])
+async def save_knowledge_base(req: KnowledgeBase):
+    """Save creator knowledge base."""
+    from billing.db_auth_store import update_user
+    def clean(v):
+        return v.strip() if isinstance(v, str) else v
+    updates = {}
+    if req.creator_bio is not None: updates["creator_bio"] = clean(req.creator_bio)
+    if req.creator_niche is not None: updates["creator_niche"] = clean(req.creator_niche)
+    if req.creator_faq is not None: updates["creator_faq"] = clean(req.creator_faq)
+    if req.signature_phrases is not None: updates["signature_phrases"] = clean(req.signature_phrases)
+    if req.banned_words is not None: updates["banned_words"] = clean(req.banned_words)
+    if req.speaking_style is not None: updates["speaking_style"] = clean(req.speaking_style)
+
+    result = update_user(req.creator_id, **updates)
+    if not result:
+        raise HTTPException(404, "Creator not found.")
+    return {"status": "saved"}
+
+@app.get("/creator/knowledge/{creator_id}", tags=["creators"])
+async def get_knowledge_base(creator_id: str):
+    """Get creator knowledge base."""
+    from billing.db_auth_store import get_user_by_id
+    user = get_user_by_id(creator_id)
+    if not user:
+        raise HTTPException(404, "Creator not found.")
+    return {
+        "creator_bio": user.get("creator_bio", ""),
+        "creator_niche": user.get("creator_niche", ""),
+        "creator_faq": user.get("creator_faq", ""),
+        "signature_phrases": user.get("signature_phrases", ""),
+        "banned_words": user.get("banned_words", ""),
+        "speaking_style": user.get("speaking_style", ""),
+    }
+
+
 # ── ADMIN ENDPOINTS ───────────────────────────────────────────────────────────
 
 @app.get("/admin/creators", tags=["admin"])

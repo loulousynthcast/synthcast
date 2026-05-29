@@ -50,6 +50,13 @@ class AuthUser(Base):
     youtube_api_key     = Column(String, nullable=True)
     youtube_video_id    = Column(String, nullable=True)
     youtube_channel_id  = Column(String, nullable=True)
+    # Creator Knowledge Base
+    creator_bio         = Column(Text, nullable=True)
+    creator_niche       = Column(String, nullable=True)
+    creator_faq         = Column(Text, nullable=True)
+    signature_phrases   = Column(Text, nullable=True)
+    banned_words        = Column(Text, nullable=True)
+    speaking_style      = Column(Text, nullable=True)
     twitch_channel      = Column(String, nullable=True)
     twitch_token        = Column(String, nullable=True)
     tiktok_handle       = Column(String, nullable=True)
@@ -68,6 +75,12 @@ try:
             "ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS twitch_token VARCHAR",
             "ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS tiktok_handle VARCHAR",
             "ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS youtube_channel_id VARCHAR",
+            "ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS creator_bio TEXT",
+            "ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS creator_niche VARCHAR",
+            "ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS creator_faq TEXT",
+            "ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS signature_phrases TEXT",
+            "ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS banned_words TEXT",
+            "ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS speaking_style TEXT",
         ]:
             try:
                 conn.execute(sql_text(col))
@@ -101,6 +114,12 @@ def _row_to_dict(user: AuthUser) -> dict:
         "youtube_api_key":     user.youtube_api_key,
         "youtube_video_id":    user.youtube_video_id,
         "youtube_channel_id":  user.youtube_channel_id,
+        "creator_bio":         user.creator_bio,
+        "creator_niche":       user.creator_niche,
+        "creator_faq":         user.creator_faq,
+        "signature_phrases":   user.signature_phrases,
+        "banned_words":        user.banned_words,
+        "speaking_style":      user.speaking_style,
         "twitch_channel":      user.twitch_channel,
         "twitch_token":        user.twitch_token,
         "tiktok_handle":       user.tiktok_handle,
