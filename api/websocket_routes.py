@@ -81,13 +81,16 @@ def strip_emojis(text: str) -> str:
 
 
 AUTO_TALK_PROMPTS = [
-    "Chat is quiet. Hype up the stream and welcome new viewers. Under 25 words.",
-    "Invite viewers to drop a comment and share where they're from. Under 25 words.",
-    "Share something about what you create or your journey. Under 25 words.",
-    "Ask viewers a fun question to get them talking. Under 25 words.",
-    "Tell viewers to follow and share the stream with a friend. Under 25 words.",
-    "Talk about Synthcast — the AI platform powering your stream — and invite viewers to synthcast.live. Under 25 words.",
-    "React to being live and hype the energy in chat. Under 25 words.",
+    "Chat is quiet. Say ONE casual sentence about how the stream is going. Don't greet anyone. Don't say 'hey'. Just talk like you're thinking out loud. Under 20 words.",
+    "Reflect on something interesting that just happened or something on your mind. Don't start with 'hey' or 'yo'. Under 20 words.",
+    "Share a quick thought about what you create or your work. Don't greet anyone. Just open with the thought directly. Under 20 words.",
+    "Throw out a random fun question for chat. Don't start with 'hey' or 'so'. Just ask the question. Under 15 words.",
+    "Mention something cool you saw recently — a movie, music, food, anything. Don't greet. Just dive in. Under 20 words.",
+    "Comment on the stream vibe right now. Don't say 'hey' or 'what's up'. Speak naturally like you're mid-conversation. Under 20 words.",
+    "Drop a quick story or memory from your week. Skip greetings. Start with the story. Under 25 words.",
+    "Mention you'd love to hear from chat — make it casual, not 'hey'. Like you're genuinely curious. Under 20 words.",
+    "Express gratitude for being live without being cheesy. Avoid 'hey there' or 'what's up'. Under 20 words.",
+    "Share a hot take or opinion on something light. No greeting. Just the opinion. Under 25 words.",
 ]
 
 prompt_index: Dict[str, int] = {}
@@ -95,8 +98,9 @@ prompt_index: Dict[str, int] = {}
 
 async def generate_response(comment: str, username: str, system_prompt: str, creator_id: str = None) -> str:
     """Generate AI response via OpenAI with conversation history."""
-    # Build messages with history
-    messages = [{"role": "system", "content": system_prompt}]
+    # Build messages with history — add variety instruction
+    enhanced_prompt = system_prompt + "\n\nIMPORTANT: Vary your openings. Never start consecutive responses with the same word. Avoid generic greetings like 'Hey there', 'What's up', 'Yo'. Mix it up — sometimes start with an observation, a question back, a reaction, or just dive into the response. Sound like a real person who knows how to hold a conversation."
+    messages = [{"role": "system", "content": enhanced_prompt}]
     
     if creator_id and creator_id in conversation_history:
         messages.extend(conversation_history[creator_id])
