@@ -604,6 +604,7 @@ class PlatformSettings(BaseModel):
     creator_id: str
     youtube_api_key: Optional[str] = None
     youtube_video_id: Optional[str] = None
+    youtube_channel_id: Optional[str] = None
     twitch_channel: Optional[str] = None
     twitch_token: Optional[str] = None
     tiktok_handle: Optional[str] = None
@@ -617,6 +618,7 @@ async def save_platform_settings(req: PlatformSettings):
     updates = {}
     if req.youtube_api_key: updates["youtube_api_key"] = clean(req.youtube_api_key)
     if req.youtube_video_id: updates["youtube_video_id"] = clean(req.youtube_video_id)
+    if req.youtube_channel_id: updates["youtube_channel_id"] = clean(req.youtube_channel_id)
     if req.twitch_channel: updates["twitch_channel"] = clean(req.twitch_channel)
     if req.twitch_token: updates["twitch_token"] = clean(req.twitch_token)
     if req.tiktok_handle: updates["tiktok_handle"] = clean(req.tiktok_handle)
@@ -689,6 +691,7 @@ async def get_platform_settings(creator_id: str):
         "twitch_configured": bool(user.get("twitch_channel") and user.get("twitch_token")),
         "tiktok_handle": user.get("tiktok_handle", ""),
         "youtube_video_id": user.get("youtube_video_id", ""),
+        "youtube_channel_id": user.get("youtube_channel_id", ""),
         "twitch_channel": user.get("twitch_channel", ""),
     }
 

@@ -49,6 +49,7 @@ class AuthUser(Base):
     heygen_avatar_id    = Column(String, nullable=True)
     youtube_api_key     = Column(String, nullable=True)
     youtube_video_id    = Column(String, nullable=True)
+    youtube_channel_id  = Column(String, nullable=True)
     twitch_channel      = Column(String, nullable=True)
     twitch_token        = Column(String, nullable=True)
     tiktok_handle       = Column(String, nullable=True)
@@ -66,6 +67,7 @@ try:
             "ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS twitch_channel VARCHAR",
             "ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS twitch_token VARCHAR",
             "ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS tiktok_handle VARCHAR",
+            "ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS youtube_channel_id VARCHAR",
         ]:
             try:
                 conn.execute(sql_text(col))
@@ -98,6 +100,7 @@ def _row_to_dict(user: AuthUser) -> dict:
         "heygen_avatar_id":    user.heygen_avatar_id,
         "youtube_api_key":     user.youtube_api_key,
         "youtube_video_id":    user.youtube_video_id,
+        "youtube_channel_id":  user.youtube_channel_id,
         "twitch_channel":      user.twitch_channel,
         "twitch_token":        user.twitch_token,
         "tiktok_handle":       user.tiktok_handle,

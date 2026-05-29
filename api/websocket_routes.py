@@ -316,31 +316,25 @@ async def youtube_listener_task(creator_id: str, api_key: str, video_id: str):
     """Listen to YouTube chat for a specific creator."""
     # Auto-detect if no video_id provided
     if not video_id:
-        # Try to find the creator's active live stream
-        # First, get their channel ID from the API key's account
+        # Try to find active live stream using stored channel_id
         try:
-            async with httpx.AsyncClient() as client:
-                resp = await client.get(
-                    "https://www.googleapis.com/youtube/v3/channels",
-                    params={"part": "id", "mine": "true", "key": api_key}
-                )
-                data = resp.json()
-                items = data.get("items", [])
-                if items:
-                    channel_id = items[0]["id"]
-                    video_id = await find_active_youtube_stream(api_key, channel_id)
-                    if video_id:
-                        print(f"[WS/YT] Auto-detected live stream: {video_id}")
-        except:
-            pass
-        
+            from billing.db_auth_store import get_user_by_id
+            user = get_user_by_id(creator_id)
+            channel_id = user.get("youtube_channel_id", "") if user else ""
+            if channel_id:
+                video_id = await find_active_youtube_stream(api_key, channel_id)
+                if video_id:
+                    print(f"[WS/YT] Auto-detected live stream: {video_id}")
+        except Exception as e:
+            print(f"[WS/YT] Auto-detect error: {e}")
+
         if not video_id:
-            print(f"[WS/YT] No active live stream found for {creator_id}")
+            print(f"[WS/YT] No active live stream found for {creator_id} — need Video ID or Channel ID")
             ws = connected.get(creator_id)
             if ws:
                 await ws.send_json({
                     "type": "notice",
-                    "message": "No active YouTube live stream detected. Start your stream first.",
+                    "message": "No YouTube live stream detected. Add your YouTube Channel ID in Settings → Platforms.",
                 })
             return
     
@@ -598,8 +592,8 @@ async def websocket_endpoint(websocket: WebSocket, creator_id: str):
                 asyncio.create_task(auto_talk_loop(creator_id))
 
                 # Start platform listeners if credentials available
-                if yt_api_key and yt_video_id:
-                    asyncio.create_task(youtube_listener_task(creator_id, yt_api_key, yt_video_id))
+                if yt_api_key:
+                    asyncio.create_task(youtube_listener_task(creator_id, yt_api_key, yt_video_id or ""))
                 if twitch_channel and twitch_token:
                     asyncio.create_task(twitch_listener_task(creator_id, twitch_channel, twitch_token))
 
