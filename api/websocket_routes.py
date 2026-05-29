@@ -163,12 +163,35 @@ async def generate_tts(text: str, voice_id: str = None) -> bytes:
         except Exception as e:
             print(f"[WS] ElevenLabs failed: {e}")
 
-    # Edge TTS fallback
+    # Edge TTS fallback — use language-specific voices
     try:
         import edge_tts
         import tempfile
+
+        def detect_lang(t):
+            t_lower = t.lower()
+            creole_words = {"bonjou","bonswa","mèsi","kijan","mwen","nou","yo","anpil","kreyòl","ayiti"}
+            french_words = {"bonjour","merci","comment","pourquoi","avec","vous","nous","très","bien"}
+            spanish_words = {"hola","gracias","cómo","qué","favor","muy","estás","para","los","las"}
+            words = set(t_lower.split())
+            if words & creole_words: return "ht"
+            if words & french_words: return "fr"
+            if words & spanish_words: return "es"
+            return "en"
+
+        voice_map = {
+            "en": "en-US-GuyNeural",
+            "fr": "fr-FR-HenriNeural",
+            "es": "es-ES-AlvaroNeural",
+            "ht": "fr-FR-HenriNeural",
+            "pt": "pt-BR-AntonioNeural",
+        }
+        lang = detect_lang(text)
+        voice = voice_map.get(lang, "en-US-GuyNeural")
+        print(f"[TTS/Edge] Using voice: {voice} for lang: {lang}")
+
         audio_path = os.path.join(tempfile.gettempdir(), f"synthcast_{uuid.uuid4().hex[:8]}.mp3")
-        communicate = edge_tts.Communicate(text, "en-US-GuyNeural")
+        communicate = edge_tts.Communicate(text, voice)
         await communicate.save(audio_path)
         with open(audio_path, "rb") as f:
             return f.read()
