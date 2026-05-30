@@ -433,8 +433,7 @@ async def youtube_listener_task(creator_id: str, api_key: str, video_id: str):
 
 
 async def twitch_listener_task(creator_id: str, channel: str, token: str):
-    """Listen to Twitch chat for a specific creator."""
-    import socket as sock_module
+    """Listen to Twitch chat using fully async asyncio streams."""
     print(f"[WS/Twitch] Starting listener for {creator_id}: #{channel}")
     session = active_sessions.get(creator_id, {})
     system_prompt = session.get("system_prompt", "You are an AI streaming avatar.")
@@ -442,24 +441,25 @@ async def twitch_listener_task(creator_id: str, channel: str, token: str):
     cooldown = 8
 
     try:
-        s = sock_module.socket(sock_module.AF_INET, sock_module.SOCK_STREAM)
-        s.connect(("irc.chat.twitch.tv", 6667))
-        s.setblocking(False)
+        # Use asyncio streams instead of blocking socket
+        reader, writer = await asyncio.open_connection("irc.chat.twitch.tv", 6667)
 
-        def irc_send(msg):
-            s.send(f"{msg}\r\n".encode("utf-8"))
+        async def irc_send(msg):
+            writer.write(f"{msg}\r\n".encode("utf-8"))
+            await writer.drain()
 
-        irc_send(f"PASS {token}")
-        irc_send(f"NICK {channel}")
-        irc_send(f"JOIN #{channel}")
+        await irc_send(f"PASS {token}")
+        await irc_send(f"NICK {channel}")
+        await irc_send(f"JOIN #{channel}")
         print(f"[WS/Twitch] Connected to #{channel}")
 
         while creator_id in active_sessions and creator_id in connected:
             try:
-                data = s.recv(4096).decode("utf-8", errors="ignore")
+                line = await asyncio.wait_for(reader.readline(), timeout=1.0)
+                data = line.decode("utf-8", errors="ignore")
                 for raw in data.strip().split("\r\n"):
                     if raw.startswith("PING"):
-                        irc_send(f"PONG :{raw.split(':',1)[1] if ':' in raw else 'tmi.twitch.tv'}")
+                        await irc_send(f"PONG :{raw.split(':',1)[1] if ':' in raw else 'tmi.twitch.tv'}")
                         continue
                     if "PRIVMSG" not in raw:
                         continue
@@ -502,7 +502,7 @@ async def twitch_listener_task(creator_id: str, channel: str, token: str):
                     await send_audio_to_browser(creator_id, response, audio)
 
                     try:
-                        irc_send(f"PRIVMSG #{channel} :@{username} {response}")
+                        await irc_send(f"PRIVMSG #{channel} :@{username} {response}")
                     except:
                         pass
 
@@ -517,14 +517,11 @@ async def twitch_listener_task(creator_id: str, channel: str, token: str):
                             "timestamp": time.time(),
                         })
 
-            except BlockingIOError:
-                pass
+            except asyncio.TimeoutError:
+                pass  # No data yet, continue loop
             except Exception as e:
                 print(f"[WS/Twitch] Error: {e}")
-
-            await asyncio.sleep(0.1)
-
-        s.close()
+                await asyncio.sleep(0.1)
 
     except Exception as e:
         print(f"[WS/Twitch] Connection error: {e}")
