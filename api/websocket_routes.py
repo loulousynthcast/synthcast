@@ -472,6 +472,10 @@ async def twitch_listener_task(creator_id: str, channel: str, token: str):
                     if not text:
                         continue
 
+                    # Ignore messages from the bot itself
+                    if username == channel.lower():
+                        continue
+
                     # Strip emojis from comment text
                     clean_text = strip_emojis(text)
                     if not clean_text:
